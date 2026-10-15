@@ -51,42 +51,30 @@ export async function getEmail(db: Db, id: string) {
   return row;
 }
 
-type EmailRow = NonNullable<Awaited<ReturnType<typeof getEmail>>>;
-
-async function markFailed(
+async function update(
   db: Db,
-  email: { id: string; attempts: number },
-  reason: string,
+  id: string,
+  set: Partial<typeof emails.$inferInsert>,
 ) {
   await db
     .update(emails)
-    .set({
-      status: 'failed',
-      failureReason: reason,
-      attempts: email.attempts + 1,
-      updatedAt: new Date(),
-    })
-    .where(eq(emails.id, email.id));
+    .set({ ...set, updatedAt: new Date() })
+    .where(eq(emails.id, id));
 }
 
-async function markSent(db: Db, email: EmailRow, attemptMade: boolean) {
-  await db
-    .update(emails)
-    .set({
-      status: 'sent',
-      failureReason: null,
-      attempts: email.attempts + (attemptMade ? 1 : 0),
-      updatedAt: new Date(),
-    })
-    .where(eq(emails.id, email.id));
-}
+const markFailed = (db: Db, id: string, attempts: number, reason: string) =>
+  update(db, id, { status: 'failed', failureReason: reason, attempts });
+
+const markSent = (db: Db, id: string, attempts: number) =>
+  update(db, id, { status: 'sent', failureReason: null, attempts });
 
 export async function markEnqueueFailed(db: Db, id: string, err: unknown) {
   const email = await getEmail(db, id);
   if (email)
     await markFailed(
       db,
-      email,
+      id,
+      email.attempts + 1,
       `Could not queue: ${err instanceof Error ? err.message : String(err)}`,
     );
 }
@@ -113,9 +101,14 @@ export async function deliverEmail(
 
   // An earlier attempt may have been accepted without us hearing; don't send twice.
   if (email.attempts > 0 && (await relayHasMessage(config, messageId))) {
-    await markSent(db, email, false);
+    await markSent(db, id, email.attempts);
     return {};
   }
+
+  // Recorded before sending, so a crash after the relay accepts still leaves
+  // the Email looking attempted and the next delivery runs the check above.
+  const attempts = email.attempts + 1;
+  await update(db, id, { attempts });
 
   try {
     const template = templates[email.template];
@@ -130,7 +123,7 @@ export async function deliverEmail(
       );
     }
     await sendViaSmtp(config, {
-      messageId: messageId,
+      messageId,
       sender: senderFor(config, email.category),
       senderName: config.APP_EMAIL_SENDER_NAME,
       to: email.recipient,
@@ -142,23 +135,20 @@ export async function deliverEmail(
     const remainingMs =
       email.createdAt.getTime() + RETRY_WINDOW_MS - Date.now();
     if (failure.kind === 'permanent' || remainingMs <= 0) {
-      await markFailed(db, email, failure.reason);
+      await markFailed(db, id, attempts, failure.reason);
       return {};
     }
-    const attempts = email.attempts + 1;
-    await db
-      .update(emails)
-      .set({ attempts, failureReason: failure.reason, updatedAt: new Date() })
-      .where(eq(emails.id, email.id));
+    await update(db, id, { failureReason: failure.reason });
     // The last retry lands on the deadline, so the Email fails on time.
-    const seconds = Math.min(
-      retryDelaySeconds(attempts),
-      Math.ceil(remainingMs / 1000),
-    );
-    return { retryInSeconds: seconds };
+    return {
+      retryInSeconds: Math.min(
+        retryDelaySeconds(attempts),
+        Math.ceil(remainingMs / 1000),
+      ),
+    };
   }
 
   // Outside the try: a database error here must not mark a delivered Email as failed.
-  await markSent(db, email, true);
+  await markSent(db, id, attempts);
   return {};
 }

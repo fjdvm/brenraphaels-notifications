@@ -11,7 +11,7 @@ export interface OutgoingMessage {
   html: string;
 }
 
-const SEND_TIMEOUT_MS = 30_000;
+export const SEND_TIMEOUT_MS = 30_000;
 
 /** SMTP gives no server-side id, so each Email carries a generated Message-ID the relay preserves. */
 export const newMessageId = (sender: string) =>
@@ -30,13 +30,13 @@ export async function sendViaSmtp(
     );
   });
   try {
-    await Promise.race([deliver(config, message), timeout]);
+    await Promise.race([sendOnce(config, message), timeout]);
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function deliver(config: Config, message: OutgoingMessage) {
+async function sendOnce(config: Config, message: OutgoingMessage) {
   await WorkerMailer.send(
     {
       host: config.SMTP_HOST,

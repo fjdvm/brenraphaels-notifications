@@ -29,7 +29,10 @@ const TEMPORARY_5XX = new Set([530, 534, 535]);
 export function classifyFailure(err: unknown): Failure {
   const reason = err instanceof Error ? err.message : String(err);
   if (err instanceof PermanentFailure) return { kind: 'permanent', reason };
-  const code = /(?:^|\s)([45]\d{2})(?:[\s-]|$)/.exec(reason)?.[1];
+  const code =
+    /(?:^|\s)([45]\d{2})(?:-|\s(?!\s*(?:ms|s|sec|seconds|bytes)\b)|$)/.exec(
+      reason,
+    )?.[1];
   if (code?.startsWith('5') && !TEMPORARY_5XX.has(Number(code)))
     return { kind: 'permanent', reason };
   return { kind: 'temporary', reason };

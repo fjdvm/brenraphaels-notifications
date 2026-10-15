@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SEND_TIMEOUT_MS, sendViaSmtp } from '../src/smtp';
 import { createHarness } from './harness';
+import { smtp } from './smtp-stub';
 
 const valid = {
   to: 'user@example.com',
@@ -126,5 +128,51 @@ describe('no duplicate sends', () => {
     await h.drainQueue();
     expect(h.smtpCalls).toHaveLength(2);
     expect(await status()).toMatchObject({ status: 'sent', attempts: 2 });
+  });
+
+  it('records the attempt before sending, so a crash after acceptance is still checked', async () => {
+    const h = createHarness();
+    const { status } = await queueOne(h);
+    let duringSend: any;
+    smtp.onSend = async () => {
+      duringSend = await status();
+    };
+    await h.drainQueue();
+    expect(duringSend).toMatchObject({ status: 'queued', attempts: 1 });
+  });
+
+  it('treats a delivery after a lost write as a retry and checks Brevo first', async () => {
+    const h = createHarness();
+    const { id, status } = await queueOne(h);
+    await h.drainQueue();
+    // Simulate the redelivery of a message whose send was accepted but never recorded.
+    const { createDb } = await import('../src/db/client');
+    const { parseConfig } = await import('../src/config');
+    const { emails } = await import('../src/db/schema');
+    const { eq } = await import('drizzle-orm');
+    const { db, close } = createDb(parseConfig(h.env).DATABASE_URL);
+    await db.update(emails).set({ status: 'queued' }).where(eq(emails.id, id));
+    await close();
+    h.queued.push({ emailId: id });
+    await h.drainQueue();
+    expect(h.smtpCalls).toHaveLength(1);
+    expect(await status()).toMatchObject({ status: 'sent', attempts: 1 });
+  });
+});
+
+describe('send timeout', () => {
+  it('gives up on a relay that never answers and reports a timeout', async () => {
+    vi.useFakeTimers();
+    const h = createHarness();
+    h.scriptSmtp('hang');
+    const result = sendViaSmtp(h.env as any, {
+      messageId: '<x@example.com>',
+      sender: 'apps@example.com',
+      to: 'u@example.com',
+      subject: 's',
+      html: 'h',
+    }).catch((e: Error) => e);
+    await vi.advanceTimersByTimeAsync(SEND_TIMEOUT_MS);
+    expect(((await result) as Error).message).toMatch(/Timed out/);
   });
 });

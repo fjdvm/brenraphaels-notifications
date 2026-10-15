@@ -23,6 +23,7 @@ describe('classifyFailure', () => {
     'Invalid RCPT TO: <a@b.c> 450 mailbox busy',
     'Failed to plain authentication: 535 bad credentials',
     'WorkerMailer is shutting down',
+    'Timed out after 500 ms waiting for the relay',
   ])('treats "%s" as temporary', (m) => expect(kind(m)).toBe('temporary'));
 
   it.each([
