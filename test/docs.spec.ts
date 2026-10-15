@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { app } from '../src/app';
 import { routes } from '../src/docs/contract';
+import { tools } from '../src/mcp/tools';
 import { createHarness } from './harness';
 
 const idOf = (method: string, path: string) =>
@@ -39,6 +40,25 @@ describe('the guide', () => {
       '.kiro/settings/mcp.json',
     ])
       expect(html).toContain(snippet);
+  });
+
+  it('lists every MCP tool with each of its arguments', async () => {
+    const html = await (
+      await createHarness().request('/docs', {}, false)
+    ).text();
+    for (const tool of tools) {
+      const row = html
+        .split('\n')
+        .find(
+          (l) =>
+            l.includes(`['<code>${tool.name}</code>','<code>`) &&
+            !l.includes('POST /') &&
+            !l.includes('GET /'),
+        );
+      expect(row, `${tool.name} argument row`).toBeDefined();
+      for (const arg of Object.keys(tool.input.shape))
+        expect(row, `${tool.name}.${arg}`).toContain(`<code>${arg}`);
+    }
   });
 
   it('writes examples against $BASE_URL so the base-URL box can rewrite them', async () => {

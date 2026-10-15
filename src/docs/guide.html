@@ -206,7 +206,17 @@ ws.onopen = () => ws.send(JSON.stringify({ type: "message", id: "m1", text: "Hel
     ['<code>send_app_email</code>','<code>POST /emails/app</code>',''],
     ['<code>send_marketing_email</code>','<code>POST /emails/marketing</code>','CRMS only'],
     ['<code>send_marketing_email_list</code>','<code>POST /emails/marketing/list</code>','CRMS only'],
-    ['<code>get_email</code>','<code>GET /emails/:id</code>','']]}],
+    ['<code>get_email</code>','<code>GET /emails/:id</code>','']]},
+  { title:'Tool arguments', narrow:true, head:['Tool','Arguments (optional ones marked ?)'], rows:[
+    ['<code>send_notification</code>','<code>type</code> <code>title</code> <code>body</code> <code>sendingApp</code> <code>targetApp</code> <code>userIds</code> (a list) <code>link?</code>'],
+    ['<code>list_notifications</code>','<code>userId</code> <code>app</code> <code>unread?</code> (<code>"true"</code> or <code>"false"</code>) <code>limit?</code> (1 to 100) <code>cursor?</code>'],
+    ['<code>get_unread_count</code>','<code>userId</code> <code>app</code>'],
+    ['<code>mark_notification_read</code>','<code>id</code> <code>userId</code> <code>app</code>'],
+    ['<code>mark_all_notifications_read</code>','<code>userId</code> <code>app</code>'],
+    ['<code>send_app_email</code>','<code>to</code> <code>app</code> <code>title</code> <code>body</code> <code>button?</code> (<code>{label, link}</code>)'],
+    ['<code>send_marketing_email</code>','<code>to</code> <code>app</code> (<code>"CRMS"</code>) <code>subscriberConsent</code> (<code>true</code>) <code>title</code> <code>body</code> <code>images?</code> (https URLs)'],
+    ['<code>send_marketing_email_list</code>','<code>recipients</code> (a list) <code>app</code> (<code>"CRMS"</code>) <code>subscriberConsent</code> (<code>true</code>) <code>title</code> <code>body</code> <code>images?</code> (https URLs)'],
+    ['<code>get_email</code>','<code>id</code>']]}],
   responses:[['200','A JSON-RPC reply. A failed tool call is a result with <code>isError: true</code> and the API’s message'],['400','Not a valid JSON-RPC request'],['401','Missing or wrong token']],
   example:`# Claude Code
 claude mcp add --transport http notifications $BASE_URL/mcp \\
@@ -223,7 +233,16 @@ http_headers = { "Authorization" = "Bearer $API_TOKEN" }
 
 # Kiro: add to .kiro/settings/mcp.json (or ~/.kiro/settings/mcp.json)
 { "mcpServers": { "notifications": { "url": "$BASE_URL/mcp",
-    "headers": { "Authorization": "Bearer $API_TOKEN" } } } }` },
+    "headers": { "Authorization": "Bearer $API_TOKEN" } } } }
+
+# Not using a client? Call a tool with plain JSON-RPC. Both Accept types are required.
+curl -X POST "$BASE_URL/mcp" -H "Authorization: Bearer $API_TOKEN" \\
+  -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" \\
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_unread_count",
+       "arguments":{"userId":"user-1","app":"Portal"}}}'
+# 200 {"result":{"content":[{"type":"text","text":"{\\"unread\\":3}"}],"isError":false},"jsonrpc":"2.0","id":1}
+# A failed call has "isError":true and the API's message in the text.
+# "method":"tools/list" returns every tool with its full input schema.` },
 { id:'get-openapi.json', title:'OpenAPI document', method:'GET', path:'/openapi.json', role:'open', intro:'The machine-readable description of every endpoint, generated from the same schemas the routes validate with. Use it to generate a client. No header needed.',
   responses:[['200','An OpenAPI 3.1 document']],
   example:`curl "$BASE_URL/openapi.json"
