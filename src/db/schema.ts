@@ -1,4 +1,11 @@
-import { integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
 
 export const emails = pgTable('emails', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -7,6 +14,8 @@ export const emails = pgTable('emails', {
   recipient: text('recipient').notNull(),
   sendingApp: text('sending_app').notNull(),
   values: text('values').notNull(),
+  /** Marketing only: the caller's assertion that the recipient is a Subscriber. */
+  subscriberConsent: boolean('subscriber_consent'),
   status: text('status', { enum: ['queued', 'sent', 'failed'] }).notNull(),
   attempts: integer('attempts').notNull().default(0),
   messageId: text('message_id'),

@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
 import { bearerAuth } from 'hono/bearer-auth';
@@ -6,6 +6,7 @@ import { ConfigError, parseConfig, type Env } from './config';
 import { createDb } from './db/client';
 import { createEmail, getEmail, markEnqueueFailed } from './emails/service';
 import { appEmail } from './templates/app-email';
+import { marketing } from './templates/marketing';
 
 const appEmailRequest = z.object({
   to: z.email(),
@@ -43,10 +44,30 @@ app.use(
   }),
 );
 
-app.post('/emails/app', async (c) => {
+const marketingEmailRequest = z.object({
+  to: z.email(),
+  // A declared check only; real caller identity waits for authentication.
+  app: z.literal('CRMS', { error: 'Only CRMS may send Marketing email' }),
+  subscriberConsent: z.literal(true, {
+    error: 'Must assert that the recipient is a Subscriber',
+  }),
+  ...marketing.schema.shape,
+});
+
+interface EmailRequest {
+  to: string;
+  app: string;
+  subscriberConsent?: boolean;
+}
+
+async function queueEmail(
+  c: Context<{ Bindings: Env }>,
+  schema: z.ZodType<EmailRequest>,
+  template: string,
+) {
   const config = parseConfig(c.env);
   const json = await c.req.json().catch(() => undefined);
-  const parsed = appEmailRequest.safeParse(json);
+  const parsed = schema.safeParse(json);
   if (!parsed.success) {
     const errors: Record<string, string[]> = {};
     for (const issue of parsed.error.issues) {
@@ -54,14 +75,15 @@ app.post('/emails/app', async (c) => {
     }
     return c.json({ errors }, 400);
   }
-  const { to, app: sendingApp, ...values } = parsed.data;
+  const { to, app: sendingApp, subscriberConsent, ...values } = parsed.data;
   const { db, close } = createDb(config.DATABASE_URL);
   try {
     const email = await createEmail(db, config, {
-      template: appEmail.name,
+      template,
       recipient: to,
       sendingApp,
       values,
+      subscriberConsent,
     });
     try {
       await c.env.EMAIL_QUEUE.send({ emailId: email.id });
@@ -73,7 +95,13 @@ app.post('/emails/app', async (c) => {
   } finally {
     await close();
   }
-});
+}
+
+app.post('/emails/app', (c) => queueEmail(c, appEmailRequest, appEmail.name));
+
+app.post('/emails/marketing', (c) =>
+  queueEmail(c, marketingEmailRequest, marketing.name),
+);
 
 app.get('/emails/:id', async (c) => {
   const config = parseConfig(c.env);
@@ -90,6 +118,7 @@ app.get('/emails/:id', async (c) => {
       template: email.template,
       recipient: email.recipient,
       sendingApp: email.sendingApp,
+      subscriberConsent: email.subscriberConsent,
       status: email.status,
       attempts: email.attempts,
       messageId: email.messageId,

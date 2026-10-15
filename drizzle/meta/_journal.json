@@ -15,6 +15,13 @@
       "when": 1792088653658,
       "tag": "0001_rename_message_id",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792092003964,
+      "tag": "0002_marketing_consent",
+      "breakpoints": true
     }
   ]
 }

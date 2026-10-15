@@ -19,6 +19,8 @@ export function createHarness(
       'postgres://postgres:test@localhost:54329/postgres',
     APP_EMAIL_SENDER: 'apps@example.com',
     APP_EMAIL_SENDER_NAME: 'Test Sender',
+    MARKETING_EMAIL_SENDER: 'marketing@example.com',
+    MARKETING_EMAIL_SENDER_NAME: 'Test Marketing',
     API_TOKEN: 'test-token-0123456789',
     EMAIL_QUEUE: { send: async (job: EmailJob) => void queued.push(job) },
     ...overrides,
@@ -52,6 +54,12 @@ export function createHarness(
     },
     postAppEmail: (body: unknown) =>
       request('/emails/app', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    postMarketingEmail: (body: unknown) =>
+      request('/emails/marketing', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),

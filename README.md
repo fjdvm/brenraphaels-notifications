@@ -14,7 +14,7 @@ npx wrangler queues create notifications-email
 npx wrangler deploy
 ```
 
-`SMTP_HOST`, `SMTP_PORT`, `APP_EMAIL_SENDER` and `APP_EMAIL_SENDER_NAME` are vars in `wrangler.jsonc`. The sender must be verified in Brevo. Copy values into `.env` for local use (gitignored). Apply migrations with `npm run db:migrate` (reads `DATABASE_URL` from `.env`).
+`SMTP_HOST`, `SMTP_PORT`, `APP_EMAIL_SENDER`, `APP_EMAIL_SENDER_NAME`, `MARKETING_EMAIL_SENDER` and `MARKETING_EMAIL_SENDER_NAME` (the marketing category sends from its own address) are vars in `wrangler.jsonc`. Both senders must be verified in Brevo. Copy values into `.env` for local use (gitignored). Apply migrations with `npm run db:migrate` (reads `DATABASE_URL` from `.env`).
 
 ## CI/CD
 
@@ -39,6 +39,7 @@ All `/emails/*` routes need `Authorization: Bearer <API_TOKEN>`.
 ## Endpoints
 
 - `POST /emails/app` `{ to, app, title, body, button?: { label, link } }` → `202 { id, status: "queued" }`
+- `POST /emails/marketing` `{ to, app: "CRMS", subscriberConsent: true, title, body, images?: [https urls] }` → `202 { id, status: "queued" }`
 - `GET /emails/:id` → the Email record (status, attempts, Message-ID, failure reason)
 
 ## Tests

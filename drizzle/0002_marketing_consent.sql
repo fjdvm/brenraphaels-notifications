@@ -1,0 +1,1 @@
+ALTER TABLE "emails" ADD COLUMN "subscriber_consent" boolean;

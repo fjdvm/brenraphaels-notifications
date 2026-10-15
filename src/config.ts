@@ -8,6 +8,8 @@ const configSchema = z.object({
   DATABASE_URL: z.string().url(),
   APP_EMAIL_SENDER: z.string().email(),
   APP_EMAIL_SENDER_NAME: z.string().min(1).optional(),
+  MARKETING_EMAIL_SENDER: z.string().email(),
+  MARKETING_EMAIL_SENDER_NAME: z.string().min(1).optional(),
   API_TOKEN: z.string().min(16),
 });
 
@@ -34,6 +36,8 @@ export interface Env extends Record<string, unknown> {
   DATABASE_URL: string;
   APP_EMAIL_SENDER: string;
   APP_EMAIL_SENDER_NAME?: string;
+  MARKETING_EMAIL_SENDER: string;
+  MARKETING_EMAIL_SENDER_NAME?: string;
   API_TOKEN: string;
   EMAIL_QUEUE: Queue<EmailJob>;
 }

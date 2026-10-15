@@ -11,11 +11,13 @@ import {
   retryDelaySeconds,
 } from './retry';
 
-// Sender address per category; marketing arrives with its own ticket.
-const senderFor = (config: Config, category: 'app' | 'marketing') => {
-  if (category === 'app') return config.APP_EMAIL_SENDER;
-  throw new Error(`No sender configured for category ${category}`);
-};
+const senderFor = (config: Config, category: 'app' | 'marketing') =>
+  category === 'app'
+    ? { address: config.APP_EMAIL_SENDER, name: config.APP_EMAIL_SENDER_NAME }
+    : {
+        address: config.MARKETING_EMAIL_SENDER,
+        name: config.MARKETING_EMAIL_SENDER_NAME,
+      };
 
 export async function createEmail(
   db: Db,
@@ -25,6 +27,7 @@ export async function createEmail(
     recipient: string;
     sendingApp: string;
     values: unknown;
+    subscriberConsent?: boolean;
   },
 ) {
   const [row] = await db
@@ -35,9 +38,10 @@ export async function createEmail(
       recipient: input.recipient,
       sendingApp: input.sendingApp,
       values: JSON.stringify(input.values),
+      subscriberConsent: input.subscriberConsent,
       status: 'queued',
       messageId: newMessageId(
-        senderFor(config, templates[input.template]!.category),
+        senderFor(config, templates[input.template]!.category).address,
       ),
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -95,7 +99,7 @@ export async function deliverEmail(
   // Rows queued before Message-IDs were assigned at creation have none yet.
   let messageId = email.messageId;
   if (!messageId) {
-    messageId = newMessageId(senderFor(config, email.category));
+    messageId = newMessageId(senderFor(config, email.category).address);
     await db.update(emails).set({ messageId }).where(eq(emails.id, email.id));
   }
 
@@ -115,10 +119,11 @@ export async function deliverEmail(
         `Could not render: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+    const sender = senderFor(config, email.category);
     await sendViaSmtp(config, {
       messageId,
-      sender: senderFor(config, email.category),
-      senderName: config.APP_EMAIL_SENDER_NAME,
+      sender: sender.address,
+      senderName: sender.name,
       to: email.recipient,
       subject: content.subject,
       html: content.html,

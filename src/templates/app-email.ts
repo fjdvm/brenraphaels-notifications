@@ -1,12 +1,6 @@
 import { z } from 'zod';
 import { defineTemplate } from './define';
-
-const esc = (s: string) =>
-  s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+import { esc } from './escape';
 
 export const appEmail = defineTemplate({
   name: 'app-email',
