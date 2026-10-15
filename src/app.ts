@@ -238,7 +238,8 @@ app.post('/notifications', async (c) => {
       {
         notifications: stored,
         stored: stored.length,
-        connected: reached.reduce((sum, n) => sum + n, 0),
+        // Recipients with at least one open connection, so it pairs with `stored`.
+        connected: reached.filter((sockets) => sockets > 0).length,
       },
       201,
     );

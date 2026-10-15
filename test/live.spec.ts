@@ -72,7 +72,8 @@ describe('pushing new Notifications', () => {
     const a = await h.connect(user, 'Portal');
     const b = await h.connect(user, 'Portal');
     const body = (await (await send([user])).json()) as any;
-    expect(body).toMatchObject({ stored: 1, connected: 2 });
+    // Two tabs, one recipient: counted once.
+    expect(body).toMatchObject({ stored: 1, connected: 1 });
     expect(a.socket.events).toHaveLength(1);
     expect(b.socket.events).toEqual(a.socket.events);
   });
@@ -121,11 +122,11 @@ describe('pushing new Notifications', () => {
 
   it('delivers to each recipient only their own Notification', async () => {
     const { h, send } = setup();
-    const [u1, u2] = [fresh(), fresh()];
+    const [u1, u2, u3] = [fresh(), fresh(), fresh()];
     const c1 = await h.connect(u1, 'Portal');
     const c2 = await h.connect(u2, 'Portal');
-    expect(await (await send([u1, u2])).json()).toMatchObject({
-      stored: 2,
+    expect(await (await send([u1, u2, u3])).json()).toMatchObject({
+      stored: 3,
       connected: 2,
     });
     expect(c1.socket.events[0].notification.userId).toBe(u1);
