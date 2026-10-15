@@ -43,6 +43,7 @@ export interface Env extends Record<string, unknown> {
   MARKETING_MAX_RECIPIENTS?: string | number;
   EMAIL_QUEUE: Queue<EmailJob>;
   NOTIFICATION_HUB: DurableObjectNamespace;
+  CONVERSATION_ROOM: DurableObjectNamespace;
 }
 
 export interface EmailJob {

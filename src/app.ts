@@ -12,7 +12,8 @@ import {
   markAllRead,
   markRead,
 } from './notifications/service';
-import { connectToHub, pushToUser } from './live/push';
+import { connectToHub, connectToRoom, pushToUser } from './live/push';
+import { connectQuery } from './conversations/schemas';
 import { notificationResponse } from './notifications/schemas';
 import { appEmail } from './templates/app-email';
 import { marketing } from './templates/marketing';
@@ -332,4 +333,14 @@ app.get('/live', (c) => {
   const parsed = inboxQuery.safeParse(c.req.query());
   if (!parsed.success) return invalid(c, parsed.error);
   return connectToHub(c.env, parsed.data.app, parsed.data.userId, c.req.raw);
+});
+
+// Outside the bearer token for the same reason as /live. The Ticket id is
+// opaque here: this service knows nothing about Tickets (ADR-0003).
+app.get('/conversations/:ticketId/live', (c) => {
+  const ticketId = c.req.param('ticketId');
+  if (ticketId.length > 128) return c.json({ error: 'Not found' }, 404);
+  const parsed = connectQuery.safeParse(c.req.query());
+  if (!parsed.success) return invalid(c, parsed.error);
+  return connectToRoom(c.env, ticketId, parsed.data, c.req.raw);
 });

@@ -5,6 +5,7 @@ import { retryDelaySeconds } from './emails/retry';
 import { deliverEmail } from './emails/service';
 
 export { NotificationHub } from './live/hub';
+export { ConversationRoom } from './conversations/room';
 
 export default {
   fetch: app.fetch,

@@ -1,3 +1,4 @@
+import { ConversationRoom } from '../src/conversations/room';
 import { NotificationHub } from '../src/live/hub';
 
 /**
@@ -9,6 +10,29 @@ export class FakeSocket {
   received: string[] = [];
   closed = false;
   peer!: FakeSocket;
+  attachment: unknown;
+  /** Set on the server end: what the runtime does when the client acts. */
+  onClientMessage?: (data: string | ArrayBuffer) => void;
+  onClientClose?: () => void;
+  serializeAttachment(value: unknown) {
+    this.attachment = structuredClone(value);
+  }
+  deserializeAttachment() {
+    return structuredClone(this.attachment);
+  }
+  /** Client end: the person types something. */
+  say(data: unknown) {
+    this.peer.onClientMessage?.(
+      typeof data === 'string' || data instanceof ArrayBuffer
+        ? data
+        : JSON.stringify(data),
+    );
+  }
+  /** Client end: the person closes the tab. */
+  leave() {
+    this.closed = this.peer.closed = true;
+    this.peer.onClientClose?.();
+  }
   send(data: string) {
     if (this.closed) throw new Error('socket closed');
     this.peer.received.push(data);
@@ -39,6 +63,45 @@ class FakeWebSocketPair {
     public response: string,
   ) {}
 };
+
+/** Generic over the Durable Object class: one instance per name, with fake sockets. */
+function createNamespace<T extends NotificationHub | ConversationRoom>(
+  make: (ctx: any, upgrade: (client: WebSocket) => Response) => T,
+) {
+  const objects = new Map<string, T>();
+  const names: string[] = [];
+  const stubFor = (name: string) => {
+    let obj = objects.get(name);
+    if (!obj) {
+      const sockets: FakeSocket[] = [];
+      const ctx = {
+        acceptWebSocket: (ws: FakeSocket) => {
+          sockets.push(ws);
+          const o = obj as any;
+          ws.onClientMessage = (data) => o.webSocketMessage?.(ws, data);
+          ws.onClientClose = () => o.webSocketClose?.(ws, 1000, '', true);
+        },
+        getWebSockets: () => sockets.filter((s) => !s.closed),
+        setWebSocketAutoResponse: () => {},
+      };
+      obj = make(ctx, (client) =>
+        Object.assign(new Response(null), { webSocket: client }),
+      );
+      objects.set(name, obj);
+    }
+    return {
+      fetch: (input: any, init?: any) => obj.fetch(new Request(input, init)),
+    };
+  };
+  return {
+    names,
+    idFromName: (name: string) => (names.push(name), name),
+    get: (id: string) => stubFor(id),
+  };
+}
+
+export const createRoomNamespace = () =>
+  createNamespace((ctx, upgrade) => new ConversationRoom(ctx, {}, upgrade));
 
 export function createHubNamespace() {
   const hubs = new Map<string, NotificationHub>();

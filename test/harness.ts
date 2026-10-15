@@ -1,6 +1,10 @@
 import type { EmailJob, Env } from '../src/config';
 import worker from '../src/index';
-import { createHubNamespace, type FakeSocket } from './fake-hub';
+import {
+  createHubNamespace,
+  createRoomNamespace,
+  type FakeSocket,
+} from './fake-hub';
 import { smtp } from './smtp-stub';
 
 /** The Worker's public surface with SMTP stubbed and the queue captured. */
@@ -24,6 +28,7 @@ export function createHarness(
     MARKETING_EMAIL_SENDER_NAME: 'Test Marketing',
     API_TOKEN: 'test-token-0123456789',
     NOTIFICATION_HUB: createHubNamespace(),
+    CONVERSATION_ROOM: createRoomNamespace(),
     EMAIL_QUEUE: { send: async (job: EmailJob) => void queued.push(job) },
     ...overrides,
   } as unknown as Env;
@@ -83,6 +88,15 @@ export function createHarness(
     async connect(userId: string, app: string) {
       const res = await request(
         `/live?userId=${userId}&app=${app}`,
+        { headers: { upgrade: 'websocket' } },
+        false,
+      );
+      return { res, socket: (res as any).webSocket as FakeSocket };
+    },
+    /** Joins a Ticket's room through the Worker, as a browser would. */
+    async join(ticketId: string, userId: string, role: string) {
+      const res = await request(
+        `/conversations/${ticketId}/live?userId=${userId}&role=${role}`,
         { headers: { upgrade: 'websocket' } },
         false,
       );
