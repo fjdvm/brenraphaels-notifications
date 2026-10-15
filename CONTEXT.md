@@ -9,7 +9,7 @@ One of the systems that uses this service. For now only the ecommerce app and CR
 _Avoid_: Client, tenant, system
 
 **App email**:
-A system Email about a person's own account activity, such as verification or password reset, like the ones the authentication service sends. It needs no marketing consent.
+A system Email an App sends to a person, built from one generic template (a title, body text and an optional button with a link). Verification and password reset are not App emails: the authentication service sends those. It needs no marketing consent.
 _Avoid_: Transactional email, system mail
 
 **Marketing email**:
@@ -17,7 +17,7 @@ A promotional Email that only CRMS can send, and only to Subscribers.
 _Avoid_: Campaign, newsletter, blast
 
 **Email template**:
-A layout owned by this service that an Email is built from, so all Apps send branded mail the same way. There are three: verification, password reset, and marketing. The marketing template is universal: Staff supply only images, a title and text.
+A layout owned by this service that an Email is built from, so all Apps send branded mail the same way. There are two: the generic App email and marketing. The marketing template is universal: Staff supply only images, a title and text.
 _Avoid_: Layout, theme
 
 **Subscriber**:
