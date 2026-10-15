@@ -76,6 +76,7 @@ export async function deliverEmail(db: Db, config: Config, id: string) {
     const { subject, html } = template.render(JSON.parse(email.values));
     messageId = await sendViaBrevo(config.BREVO_API_KEY, {
       sender: senderFor(config, email.category),
+      senderName: config.APP_EMAIL_SENDER_NAME,
       to: email.recipient,
       subject,
       html,

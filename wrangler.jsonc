@@ -8,7 +8,8 @@
     "consumers": [{ "queue": "notifications-email", "max_retries": 3 }]
   },
   "vars": {
-    "APP_EMAIL_SENDER": "no-reply@example.com"
+    "APP_EMAIL_SENDER": "jude.nitram08@gmail.com",
+    "APP_EMAIL_SENDER_NAME": "Bren Raphael's"
   }
   // Secrets (set with `wrangler secret put`): BREVO_API_KEY, DATABASE_URL, API_TOKEN
 }

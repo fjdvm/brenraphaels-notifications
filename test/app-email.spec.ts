@@ -79,6 +79,7 @@ describe('delivery', () => {
     const call = h.brevoCalls[0]!;
     expect(call.headers.get('api-key')).toBe('test-key');
     expect(call.body.sender.email).toBe('apps@example.com');
+    expect(call.body.sender.name).toBe('Test Sender');
     expect(call.body.to).toEqual([{ email: 'user@example.com' }]);
     expect(call.body.subject).toBe('Welcome aboard');
     expect(call.body.htmlContent).toContain('Your account is ready.');

@@ -24,6 +24,7 @@ export function createHarness(
       process.env.TEST_DATABASE_URL ??
       'postgres://postgres:test@localhost:54329/postgres',
     APP_EMAIL_SENDER: 'apps@example.com',
+    APP_EMAIL_SENDER_NAME: 'Test Sender',
     API_TOKEN: 'test-token-0123456789',
     EMAIL_QUEUE: { send: async (job: EmailJob) => void queued.push(job) },
     ...overrides,

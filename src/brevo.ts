@@ -1,5 +1,6 @@
 export interface BrevoMessage {
   sender: string;
+  senderName?: string;
   to: string;
   subject: string;
   html: string;
@@ -17,7 +18,7 @@ export async function sendViaBrevo(
       accept: 'application/json',
     },
     body: JSON.stringify({
-      sender: { email: message.sender },
+      sender: { email: message.sender, name: message.senderName },
       to: [{ email: message.to }],
       subject: message.subject,
       htmlContent: message.html,
