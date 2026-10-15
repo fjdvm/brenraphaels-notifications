@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { parseConfig, type Env } from './config';
 import { createDb } from './db/client';
-import { createEmail, getEmail } from './emails/service';
+import { createEmail, getEmail, markEnqueueFailed } from './emails/service';
 import { appEmail } from './templates/app-email';
 
 const appEmailRequest = z.object({
@@ -23,7 +23,11 @@ app.post('/emails/app', async (c) => {
   const json = await c.req.json().catch(() => undefined);
   const parsed = appEmailRequest.safeParse(json);
   if (!parsed.success) {
-    return c.json({ errors: z.flattenError(parsed.error).fieldErrors }, 400);
+    const errors: Record<string, string[]> = {};
+    for (const issue of parsed.error.issues) {
+      (errors[issue.path.join('.') || '_'] ??= []).push(issue.message);
+    }
+    return c.json({ errors }, 400);
   }
   const { to, app: sendingApp, ...values } = parsed.data;
   const { db, close } = createDb(config.DATABASE_URL);
@@ -34,7 +38,12 @@ app.post('/emails/app', async (c) => {
       sendingApp,
       values,
     });
-    await c.env.EMAIL_QUEUE.send({ emailId: email.id });
+    try {
+      await c.env.EMAIL_QUEUE.send({ emailId: email.id });
+    } catch (err) {
+      await markEnqueueFailed(db, email.id, err);
+      throw err;
+    }
     return c.json({ id: email.id, status: 'queued' }, 202);
   } finally {
     await close();

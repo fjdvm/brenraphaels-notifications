@@ -54,7 +54,7 @@ describe('requesting an App email', () => {
     const { errors } = (await res.json()) as any;
     expect(Object.keys(errors).sort()).toEqual([
       'app',
-      'button',
+      'button.link',
       'title',
       'to',
     ]);
@@ -109,6 +109,29 @@ describe('delivery', () => {
     expect(record.failureReason).toContain('401');
     expect(record.failureReason).toContain('Key not found');
     expect(record.attempts).toBe(1);
+  });
+});
+
+describe('failure handling', () => {
+  it('marks the Email failed and answers 500 when it cannot be queued', async () => {
+    const h = createHarness({
+      EMAIL_QUEUE: {
+        send: async () => {
+          throw new Error('queue down');
+        },
+      },
+    });
+    expect((await h.postAppEmail(valid)).status).toBe(500);
+  });
+
+  it('marks the Email failed when Brevo answers without a message id', async () => {
+    const h = createHarness();
+    h.failBrevoWith(200, 'ok');
+    const { id } = (await (await h.postAppEmail(valid)).json()) as any;
+    await h.drainQueue();
+    expect(((await (await h.getEmail(id)).json()) as any).status).toBe(
+      'failed',
+    );
   });
 });
 

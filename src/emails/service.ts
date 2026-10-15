@@ -39,37 +39,64 @@ export async function getEmail(db: Db, id: string) {
   return row;
 }
 
+async function markFailed(
+  db: Db,
+  email: { id: string; attempts: number },
+  reason: string,
+) {
+  await db
+    .update(emails)
+    .set({
+      status: 'failed',
+      failureReason: reason,
+      attempts: email.attempts + 1,
+      updatedAt: new Date(),
+    })
+    .where(eq(emails.id, email.id));
+}
+
+export async function markEnqueueFailed(db: Db, id: string, err: unknown) {
+  const email = await getEmail(db, id);
+  if (email)
+    await markFailed(
+      db,
+      email,
+      `Could not queue: ${err instanceof Error ? err.message : String(err)}`,
+    );
+}
+
 export async function deliverEmail(db: Db, config: Config, id: string) {
   const email = await getEmail(db, id);
   if (!email || email.status !== 'queued') return;
+
+  let messageId: string;
   try {
     const template = templates[email.template];
     if (!template) throw new Error(`Unknown template ${email.template}`);
     const { subject, html } = template.render(JSON.parse(email.values));
-    const messageId = await sendViaBrevo(config.BREVO_API_KEY, {
+    messageId = await sendViaBrevo(config.BREVO_API_KEY, {
       sender: senderFor(config, email.category),
       to: email.recipient,
       subject,
       html,
     });
-    await db
-      .update(emails)
-      .set({
-        status: 'sent',
-        brevoMessageId: messageId,
-        attempts: email.attempts + 1,
-        updatedAt: new Date(),
-      })
-      .where(eq(emails.id, id));
   } catch (err) {
-    await db
-      .update(emails)
-      .set({
-        status: 'failed',
-        failureReason: err instanceof Error ? err.message : String(err),
-        attempts: email.attempts + 1,
-        updatedAt: new Date(),
-      })
-      .where(eq(emails.id, id));
+    await markFailed(
+      db,
+      email,
+      err instanceof Error ? err.message : String(err),
+    );
+    return;
   }
+
+  // Outside the try: a database error here must not mark a delivered Email as failed.
+  await db
+    .update(emails)
+    .set({
+      status: 'sent',
+      brevoMessageId: messageId,
+      attempts: email.attempts + 1,
+      updatedAt: new Date(),
+    })
+    .where(eq(emails.id, id));
 }
