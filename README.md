@@ -1,6 +1,6 @@
 # Notifications
 
-Hono Worker on Cloudflare (see `docs/adr/`). Email goes through Brevo's SMTP relay (ADR-0004) via a Cloudflare Queue; records live in Neon through Drizzle.
+Hono Worker on Cloudflare (see `docs/adr/`), deployed as `br-notifications` at https://br-notifications.jude-nitram08.workers.dev. Email goes through Brevo's SMTP relay (ADR-0004) via a Cloudflare Queue; records live in Neon through Drizzle.
 
 ## Setup
 
@@ -11,6 +11,7 @@ npx wrangler secret put SMTP_PASSWORD
 npx wrangler secret put DATABASE_URL
 npx wrangler secret put API_TOKEN
 npx wrangler queues create notifications-email
+npx wrangler deploy
 ```
 
 `SMTP_HOST`, `SMTP_PORT`, `APP_EMAIL_SENDER` and `APP_EMAIL_SENDER_NAME` are vars in `wrangler.jsonc`. The sender must be verified in Brevo. Copy values into `.env` for local use (gitignored). Apply migrations with `npm run db:migrate` (reads `DATABASE_URL` from `.env`).
