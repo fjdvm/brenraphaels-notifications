@@ -2,12 +2,14 @@ import { z } from 'zod';
 import type { ZodObject, ZodRawShape } from 'zod';
 import {
   appEmailRequest,
-  inboxQuery,
-  listQuery,
   marketingEmailRequest,
   marketingListRequest,
+} from '../emails/schemas';
+import {
+  inboxQuery,
+  listQuery,
   sendNotificationRequest,
-} from '../requests';
+} from '../notifications/schemas';
 
 type Args = Record<string, unknown>;
 

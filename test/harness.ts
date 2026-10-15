@@ -4,7 +4,7 @@ import {
   createHubNamespace,
   createRoomNamespace,
   type FakeSocket,
-} from './fake-hub';
+} from './fake-durable-objects';
 import { smtp } from './smtp-stub';
 
 /** The Worker's public surface with SMTP stubbed and the queue captured. */

@@ -46,7 +46,7 @@ All `/emails/*` routes need `Authorization: Bearer <API_TOKEN>`.
 ## Docs and agents
 
 - `GET /docs`: the usage guide, with a worked example per route. Hand-written in `src/docs/guide.html`; `test/docs.spec.ts` fails if a route in `src/docs/contract.ts` is missing from it.
-- `GET /openapi.json`: OpenAPI 3.1, generated from `src/docs/contract.ts` and the schemas in `src/requests.ts`. A test fails when the app and the contract disagree. Add a route to the contract when you add it to the app.
+- `GET /openapi.json`: OpenAPI 3.1, generated from `src/docs/contract.ts` and the `schemas.ts` files in `src/notifications/` and `src/emails/`. A test fails when the app and the contract disagree. Add a route to the contract when you add it to the app.
 - `POST /mcp`: stateless remote MCP server for agents, behind the same bearer token. Each tool in `src/mcp/tools.ts` calls the matching route in-process, so it validates and fails exactly like the API. Add a tool there when a route should be reachable from agents, and keep the "Use it from an agent" section of the guide in step.
 
 `/docs` and `/openapi.json` need no token.

@@ -1,14 +1,16 @@
 import { z } from 'zod';
 import type { ZodType } from 'zod';
-import { notificationResponse } from '../notifications/schemas';
 import {
   appEmailRequest,
-  inboxQuery,
-  listQuery,
   marketingEmailRequest,
   marketingListRequest,
+} from '../emails/schemas';
+import {
+  inboxQuery,
+  listQuery,
+  notificationResponse,
   sendNotificationRequest,
-} from '../requests';
+} from '../notifications/schemas';
 
 export interface RouteSpec {
   method: 'get' | 'post';

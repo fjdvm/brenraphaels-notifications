@@ -12,7 +12,8 @@ import {
   markAllRead,
   markRead,
 } from './notifications/service';
-import { connectToHub, connectToRoom, pushToUser } from './live/push';
+import { connectToRoom } from './conversations/connect';
+import { connectToHub, pushToUser } from './live/push';
 import guide from './docs/guide.html';
 import { buildOpenApiDocument } from './docs/openapi';
 import { handleMcp } from './mcp/router';
@@ -21,13 +22,15 @@ import { appEmail } from './templates/app-email';
 import { marketing } from './templates/marketing';
 import {
   appEmailRequest,
-  inboxQuery,
-  listQuery,
   marketingEmailRequest,
   marketingListRequest,
+} from './emails/schemas';
+import {
+  inboxQuery,
+  listQuery,
+  notificationResponse,
   sendNotificationRequest,
-} from './requests';
-import { notificationResponse } from './notifications/schemas';
+} from './notifications/schemas';
 
 function tokenMatches(given: string, expected: string) {
   const enc = new TextEncoder();
