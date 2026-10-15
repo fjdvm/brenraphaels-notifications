@@ -16,6 +16,10 @@ npx wrangler deploy
 
 `SMTP_HOST`, `SMTP_PORT`, `APP_EMAIL_SENDER` and `APP_EMAIL_SENDER_NAME` are vars in `wrangler.jsonc`. The sender must be verified in Brevo. Copy values into `.env` for local use (gitignored). Apply migrations with `npm run db:migrate` (reads `DATABASE_URL` from `.env`).
 
+## CI/CD
+
+`.github/workflows/deploy.yml` runs typecheck, lint and tests on every push and pull request. Every push to `main` (including a merged pull request) then applies migrations and runs `wrangler deploy`, only if the tests pass. Add these repository secrets (Settings, Secrets and variables, Actions): `CLOUDFLARE_API_TOKEN` (the "Edit Cloudflare Workers" template), `CLOUDFLARE_ACCOUNT_ID` and `DATABASE_URL`. The Worker's own secrets stay in Cloudflare (`wrangler secret put`).
+
 All `/emails/*` routes need `Authorization: Bearer <API_TOKEN>`.
 
 ## Endpoints
