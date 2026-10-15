@@ -9,7 +9,7 @@ export const emails = pgTable('emails', {
   values: text('values').notNull(),
   status: text('status', { enum: ['queued', 'sent', 'failed'] }).notNull(),
   attempts: integer('attempts').notNull().default(0),
-  brevoMessageId: text('brevo_message_id'),
+  messageId: text('message_id'),
   failureReason: text('failure_reason'),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()

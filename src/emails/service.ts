@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm';
-import { sendViaBrevo } from '../brevo';
 import type { Config } from '../config';
 import type { Db } from '../db/client';
 import { emails } from '../db/schema';
+import { sendViaSmtp } from '../smtp';
 import { templates } from '../templates/registry';
 
 // Sender address per category; marketing arrives with its own ticket.
@@ -74,7 +74,7 @@ export async function deliverEmail(db: Db, config: Config, id: string) {
     const template = templates[email.template];
     if (!template) throw new Error(`Unknown template ${email.template}`);
     const { subject, html } = template.render(JSON.parse(email.values));
-    messageId = await sendViaBrevo(config.BREVO_API_KEY, {
+    messageId = await sendViaSmtp(config, {
       sender: senderFor(config, email.category),
       senderName: config.APP_EMAIL_SENDER_NAME,
       to: email.recipient,
@@ -95,7 +95,7 @@ export async function deliverEmail(db: Db, config: Config, id: string) {
     .update(emails)
     .set({
       status: 'sent',
-      brevoMessageId: messageId,
+      messageId,
       attempts: email.attempts + 1,
       updatedAt: new Date(),
     })

@@ -92,7 +92,7 @@ app.get('/emails/:id', async (c) => {
       sendingApp: email.sendingApp,
       status: email.status,
       attempts: email.attempts,
-      brevoMessageId: email.brevoMessageId,
+      messageId: email.messageId,
       failureReason: email.failureReason,
       createdAt: email.createdAt,
       updatedAt: email.updatedAt,

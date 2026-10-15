@@ -8,6 +8,13 @@
       "when": 1792087789018,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792088653658,
+      "tag": "0001_rename_message_id",
+      "breakpoints": true
     }
   ]
 }

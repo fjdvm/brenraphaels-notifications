@@ -1,7 +1,10 @@
 import { z } from 'zod';
 
 const configSchema = z.object({
-  BREVO_API_KEY: z.string().min(1),
+  SMTP_HOST: z.string().min(1),
+  SMTP_PORT: z.coerce.number().int().positive(),
+  SMTP_USER: z.string().min(1),
+  SMTP_PASSWORD: z.string().min(1),
   DATABASE_URL: z.string().url(),
   APP_EMAIL_SENDER: z.string().email(),
   APP_EMAIL_SENDER_NAME: z.string().min(1).optional(),
@@ -24,7 +27,10 @@ export function parseConfig(env: Record<string, unknown>): Config {
 }
 
 export interface Env extends Record<string, unknown> {
-  BREVO_API_KEY: string;
+  SMTP_HOST: string;
+  SMTP_PORT: string | number;
+  SMTP_USER: string;
+  SMTP_PASSWORD: string;
   DATABASE_URL: string;
   APP_EMAIL_SENDER: string;
   APP_EMAIL_SENDER_NAME?: string;

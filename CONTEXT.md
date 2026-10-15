@@ -29,7 +29,7 @@ A real-time in-app message sent from one App to a user in another (or the same) 
 _Avoid_: Alert, push, event
 
 **Email**:
-A message sent to an address through Brevo, with a stored record of what was sent and its outcome.
+A message sent to an address through Brevo (SMTP relay), with a stored record of what was sent and its outcome.
 _Avoid_: Mail, message
 
 **Conversation**:

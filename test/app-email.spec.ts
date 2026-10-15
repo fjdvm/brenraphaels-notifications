@@ -34,7 +34,7 @@ describe('requesting an App email', () => {
     });
     expect(record.createdAt).toBeTruthy();
     expect(record.updatedAt).toBeTruthy();
-    expect(h.brevoCalls).toHaveLength(0);
+    expect(h.smtpCalls).toHaveLength(0);
   });
 
   it('accepts a request without a button', async () => {
@@ -70,46 +70,51 @@ describe('requesting an App email', () => {
 });
 
 describe('delivery', () => {
-  it('sends through Brevo from the App category sender and marks the Email sent', async () => {
+  it('sends over SMTP from the App category sender and marks the Email sent', async () => {
     const h = createHarness();
     const { id } = (await (await h.postAppEmail(valid)).json()) as any;
     await h.drainQueue();
 
-    expect(h.brevoCalls).toHaveLength(1);
-    const call = h.brevoCalls[0]!;
-    expect(call.headers.get('api-key')).toBe('test-key');
-    expect(call.body.sender.email).toBe('apps@example.com');
-    expect(call.body.sender.name).toBe('Test Sender');
-    expect(call.body.to).toEqual([{ email: 'user@example.com' }]);
-    expect(call.body.subject).toBe('Welcome aboard');
-    expect(call.body.htmlContent).toContain('Your account is ready.');
-    expect(call.body.htmlContent).toContain('href="https://hrms.example.com"');
+    expect(h.smtpCalls).toHaveLength(1);
+    const { options, email } = h.smtpCalls[0]!;
+    expect(options).toMatchObject({
+      host: 'smtp.example.com',
+      port: 587,
+      startTls: true,
+      credentials: { username: 'smtp-user', password: 'smtp-password' },
+    });
+    expect(email.from).toEqual({
+      name: 'Test Sender',
+      email: 'apps@example.com',
+    });
+    expect(email.to).toBe('user@example.com');
+    expect(email.subject).toBe('Welcome aboard');
+    expect(email.html).toContain('Your account is ready.');
+    expect(email.html).toContain('href="https://hrms.example.com"');
 
     const record = (await (await h.getEmail(id)).json()) as any;
-    expect(record).toMatchObject({
-      status: 'sent',
-      brevoMessageId: '<brevo-1@smtp-relay.mailin.fr>',
-      attempts: 1,
-    });
+    expect(record).toMatchObject({ status: 'sent', attempts: 1 });
+    expect(record.messageId).toBe(email.headers['Message-ID']);
+    expect(record.messageId).toMatch(/^<[0-9a-f-]+@example\.com>$/);
   });
 
   it('escapes HTML in user-supplied text', async () => {
     const h = createHarness();
     await h.postAppEmail({ ...valid, body: '<script>alert(1)</script>' });
     await h.drainQueue();
-    expect(h.brevoCalls[0]!.body.htmlContent).not.toContain('<script>');
+    expect(h.smtpCalls[0]!.email.html).not.toContain('<script>');
   });
 
-  it('marks the Email failed with the reason when Brevo fails', async () => {
+  it('marks the Email failed with the reason when SMTP fails', async () => {
     const h = createHarness();
-    h.failBrevoWith(401, '{"message":"Key not found"}');
+    h.failSmtpWith('Failed to plain authentication: 535 Authentication failed');
     const { id } = (await (await h.postAppEmail(valid)).json()) as any;
     await h.drainQueue();
 
     const record = (await (await h.getEmail(id)).json()) as any;
     expect(record.status).toBe('failed');
-    expect(record.failureReason).toContain('401');
-    expect(record.failureReason).toContain('Key not found');
+    expect(record.failureReason).toContain('535 Authentication failed');
+    expect(record.messageId).toBeNull();
     expect(record.attempts).toBe(1);
   });
 });
@@ -162,14 +167,9 @@ describe('failure handling', () => {
     expect((await h.postAppEmail(valid)).status).toBe(500);
   });
 
-  it('marks the Email failed when Brevo answers without a message id', async () => {
-    const h = createHarness();
-    h.failBrevoWith(200, 'ok');
-    const { id } = (await (await h.postAppEmail(valid)).json()) as any;
-    await h.drainQueue();
-    expect(((await (await h.getEmail(id)).json()) as any).status).toBe(
-      'failed',
-    );
+  it('answers 500 when the SMTP port is not a number', async () => {
+    const h = createHarness({ SMTP_PORT: 'abc' });
+    expect((await h.postAppEmail(valid)).status).toBe(500);
   });
 });
 
@@ -187,13 +187,13 @@ describe('configuration', () => {
   it('stops with a clear error naming the missing or malformed values', () => {
     expect(() =>
       parseConfig({ DATABASE_URL: 'not a url', APP_EMAIL_SENDER: 'x' }),
-    ).toThrow(/BREVO_API_KEY.*DATABASE_URL.*APP_EMAIL_SENDER/s);
+    ).toThrow(/SMTP_HOST.*SMTP_PASSWORD.*DATABASE_URL.*APP_EMAIL_SENDER/s);
   });
 
   it('is enforced when the Worker handles a request', async () => {
-    const h = createHarness({ BREVO_API_KEY: undefined });
+    const h = createHarness({ SMTP_PASSWORD: undefined });
     const res = await h.postAppEmail(valid);
     expect(res.status).toBe(500);
-    expect(((await res.json()) as any).error).toContain('BREVO_API_KEY');
+    expect(((await res.json()) as any).error).toContain('SMTP_PASSWORD');
   });
 });
