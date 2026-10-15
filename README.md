@@ -18,7 +18,21 @@ npx wrangler deploy
 
 ## CI/CD
 
-`.github/workflows/deploy.yml` runs typecheck, lint and tests on every push and pull request. Every push to `main` (including a merged pull request) then applies migrations and runs `wrangler deploy`, only if the tests pass. Add these repository secrets (Settings, Secrets and variables, Actions): `CLOUDFLARE_API_TOKEN` (the "Edit Cloudflare Workers" template), `CLOUDFLARE_ACCOUNT_ID` and `DATABASE_URL`. The Worker's own secrets stay in Cloudflare (`wrangler secret put`).
+`.github/workflows/deploy.yml` runs typecheck, lint and tests on every push and pull request. Every push to `main` (including a merged pull request) then applies migrations and runs `wrangler deploy`, only if the tests pass. The Worker's own secrets (SMTP, `DATABASE_URL`, `API_TOKEN`) stay in Cloudflare (`wrangler secret put`); the workflow needs three GitHub repository secrets:
+
+| Secret | Where to get it |
+| --- | --- |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare dashboard, My Profile, API Tokens, Create Token, template **Edit Cloudflare Workers**, set Account Resources to this account. Queues are used, so also add Account, Cloudflare Queues, Edit. Copy it once; it is not shown again. |
+| `CLOUDFLARE_ACCOUNT_ID` | `npx wrangler whoami` prints it, or the dashboard's Workers & Pages overview (right-hand side). |
+| `DATABASE_URL` | The same Neon connection string as in `.env` (Neon console, the project's Connect dialog, direct connection). Used only to apply migrations. |
+
+Set them with the GitHub CLI so nothing is pasted into a page (each command prompts for the value; the last reads it from `.env`):
+
+```sh
+gh secret set CLOUDFLARE_API_TOKEN
+gh secret set CLOUDFLARE_ACCOUNT_ID
+gh secret set DATABASE_URL --body "$(grep '^DATABASE_URL=' .env | cut -d= -f2-)"
+```
 
 All `/emails/*` routes need `Authorization: Bearer <API_TOKEN>`.
 
