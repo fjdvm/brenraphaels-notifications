@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import type { EmailJob, Env } from '../src/config';
 import worker from '../src/index';
 import { smtp } from './smtp-stub';
@@ -8,6 +9,12 @@ export function createHarness(
 ) {
   const queued: EmailJob[] = [];
   smtp.reset();
+
+  // Brevo's events API: knows exactly the Message-IDs the stubbed relay accepted.
+  vi.stubGlobal('fetch', async (url: string) => {
+    const id = new URL(url).searchParams.get('messageId')!;
+    return Response.json({ events: smtp.accepted.has(id) ? [{}] : [] });
+  });
 
   const env = {
     SMTP_HOST: 'smtp.example.com',
@@ -20,6 +27,7 @@ export function createHarness(
     APP_EMAIL_SENDER: 'apps@example.com',
     APP_EMAIL_SENDER_NAME: 'Test Sender',
     API_TOKEN: 'test-token-0123456789',
+    BREVO_API_KEY: 'brevo-key',
     EMAIL_QUEUE: { send: async (job: EmailJob) => void queued.push(job) },
     ...overrides,
   } as unknown as Env;
@@ -44,6 +52,12 @@ export function createHarness(
     failSmtpWith: (message: string) => {
       smtp.failure = new Error(message);
     },
+    /** Queues the outcome of each upcoming send, in order. */
+    scriptSmtp: (...steps: typeof smtp.script) =>
+      void smtp.script.push(...steps),
+    clearSmtpFailure: () => {
+      smtp.failure = undefined;
+    },
     postAppEmail: (body: unknown) =>
       request('/emails/app', {
         method: 'POST',
@@ -52,11 +66,24 @@ export function createHarness(
       }),
     request,
     getEmail: (id: string) => request(`/emails/${id}`),
-    /** Runs the queue consumer over everything queued so far. */
+    /**
+     * Runs the queue consumer over everything queued so far. A message the
+     * consumer retries is re-queued, and its delay is reported.
+     */
     async drainQueue() {
       const jobs = queued.splice(0);
-      const batch = { messages: jobs.map((body) => ({ body, ack: () => {} })) };
-      await worker.queue(batch as any, env);
+      const retries: Array<{ emailId: string; delaySeconds?: number }> = [];
+      const messages = jobs.map((body) => ({
+        body,
+        attempts: 1,
+        ack: () => {},
+        retry: (opts?: { delaySeconds?: number }) => {
+          retries.push({ emailId: body.emailId, ...opts });
+          queued.push(body);
+        },
+      }));
+      await worker.queue({ messages } as any, env);
+      return retries;
     },
   };
 }

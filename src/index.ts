@@ -1,6 +1,7 @@
 import { app } from './app';
 import { parseConfig, type EmailJob, type Env } from './config';
 import { createDb } from './db/client';
+import { retryDelaySeconds } from './emails/retry';
 import { deliverEmail } from './emails/service';
 
 export default {
@@ -12,12 +13,17 @@ export default {
     try {
       for (const message of batch.messages) {
         try {
-          await deliverEmail(db, config, message.body.emailId);
-          message.ack();
+          const { retryInSeconds } = await deliverEmail(
+            db,
+            config,
+            message.body.emailId,
+          );
+          if (retryInSeconds) message.retry({ delaySeconds: retryInSeconds });
+          else message.ack();
         } catch (err) {
           // Delivery is idempotent (only `queued` Emails are sent), so retrying is safe.
           console.error(err);
-          message.retry();
+          message.retry({ delaySeconds: retryDelaySeconds(message.attempts) });
         }
       }
     } finally {

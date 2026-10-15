@@ -107,14 +107,13 @@ describe('delivery', () => {
 
   it('marks the Email failed with the reason when SMTP fails', async () => {
     const h = createHarness();
-    h.failSmtpWith('Failed to plain authentication: 535 Authentication failed');
+    h.failSmtpWith('Invalid RCPT TO: <a@b.c> 550 no such user');
     const { id } = (await (await h.postAppEmail(valid)).json()) as any;
     await h.drainQueue();
 
     const record = (await (await h.getEmail(id)).json()) as any;
     expect(record.status).toBe('failed');
-    expect(record.failureReason).toContain('535 Authentication failed');
-    expect(record.messageId).toBeNull();
+    expect(record.failureReason).toContain('550 no such user');
     expect(record.attempts).toBe(1);
   });
 });

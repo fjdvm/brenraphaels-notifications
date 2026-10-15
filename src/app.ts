@@ -57,7 +57,7 @@ app.post('/emails/app', async (c) => {
   const { to, app: sendingApp, ...values } = parsed.data;
   const { db, close } = createDb(config.DATABASE_URL);
   try {
-    const email = await createEmail(db, {
+    const email = await createEmail(db, config, {
       template: appEmail.name,
       recipient: to,
       sendingApp,
