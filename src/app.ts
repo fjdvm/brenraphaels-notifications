@@ -5,6 +5,13 @@ import { bearerAuth } from 'hono/bearer-auth';
 import { ConfigError, parseConfig, type Env } from './config';
 import { createDb } from './db/client';
 import { createEmail, getEmail, markEnqueueFailed } from './emails/service';
+import {
+  countUnread,
+  createNotifications,
+  listNotifications,
+  markAllRead,
+  markRead,
+} from './notifications/service';
 import { appEmail } from './templates/app-email';
 import { marketing } from './templates/marketing';
 
@@ -33,16 +40,16 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal error' }, 500);
 });
 
-app.use(
-  '/emails/*',
-  bearerAuth({
-    verifyToken: (token, c) =>
-      tokenMatches(
-        token,
-        parseConfig(c.env as Record<string, unknown>).API_TOKEN,
-      ),
-  }),
-);
+const requireToken = bearerAuth({
+  verifyToken: (token, c) =>
+    tokenMatches(
+      token,
+      parseConfig(c.env as Record<string, unknown>).API_TOKEN,
+    ),
+});
+app.use('/emails/*', requireToken);
+app.use('/notifications', requireToken);
+app.use('/notifications/*', requireToken);
 
 const marketingEmailRequest = z.object({
   to: z.email(),
@@ -181,6 +188,123 @@ app.get('/emails/:id', async (c) => {
       createdAt: email.createdAt,
       updatedAt: email.updatedAt,
     });
+  } finally {
+    await close();
+  }
+});
+
+const sendNotificationRequest = z.object({
+  type: z.string().min(1),
+  title: z.string().min(1),
+  body: z.string().min(1),
+  link: z.url().optional(),
+  sendingApp: z.string().min(1),
+  targetApp: z.string().min(1),
+  userIds: z.array(z.string().min(1)).min(1, 'Needs at least one user id'),
+});
+
+const notificationResponse = z.object({
+  id: z.uuid(),
+  type: z.string(),
+  title: z.string(),
+  body: z.string(),
+  link: z.string().nullable(),
+  sendingApp: z.string(),
+  targetApp: z.string(),
+  userId: z.string(),
+  createdAt: z.date(),
+  readAt: z.date().nullable(),
+});
+
+const inboxQuery = z.object({
+  userId: z.string().min(1),
+  app: z.string().min(1),
+});
+
+const listQuery = inboxQuery.extend({
+  unread: z.enum(['true', 'false']).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  cursor: z.string().min(1).optional(),
+});
+
+app.post('/notifications', async (c) => {
+  const parsed = sendNotificationRequest.safeParse(
+    await c.req.json().catch(() => undefined),
+  );
+  if (!parsed.success) return invalid(c, parsed.error);
+  const { db, close } = createDb(parseConfig(c.env).DATABASE_URL);
+  try {
+    const rows = await createNotifications(db, parsed.data);
+    return c.json(
+      { notifications: rows.map((r) => notificationResponse.parse(r)) },
+      201,
+    );
+  } finally {
+    await close();
+  }
+});
+
+app.get('/notifications', async (c) => {
+  const parsed = listQuery.safeParse(c.req.query());
+  if (!parsed.success) return invalid(c, parsed.error);
+  const { unread, ...q } = parsed.data;
+  const { db, close } = createDb(parseConfig(c.env).DATABASE_URL);
+  try {
+    const page = await listNotifications(db, {
+      ...q,
+      unreadOnly: unread === 'true',
+    });
+    if (!page) return c.json({ errors: { cursor: ['Invalid cursor'] } }, 400);
+    return c.json({
+      notifications: page.items.map((r) => notificationResponse.parse(r)),
+      nextCursor: page.nextCursor,
+    });
+  } finally {
+    await close();
+  }
+});
+
+app.get('/notifications/unread-count', async (c) => {
+  const parsed = inboxQuery.safeParse(c.req.query());
+  if (!parsed.success) return invalid(c, parsed.error);
+  const { db, close } = createDb(parseConfig(c.env).DATABASE_URL);
+  try {
+    return c.json({
+      unread: await countUnread(db, parsed.data.userId, parsed.data.app),
+    });
+  } finally {
+    await close();
+  }
+});
+
+app.post('/notifications/read-all', async (c) => {
+  const parsed = inboxQuery.safeParse(
+    await c.req.json().catch(() => undefined),
+  );
+  if (!parsed.success) return invalid(c, parsed.error);
+  const { db, close } = createDb(parseConfig(c.env).DATABASE_URL);
+  try {
+    return c.json({
+      updated: await markAllRead(db, parsed.data.userId, parsed.data.app),
+    });
+  } finally {
+    await close();
+  }
+});
+
+app.post('/notifications/:id/read', async (c) => {
+  const id = c.req.param('id');
+  if (!z.uuid().safeParse(id).success)
+    return c.json({ error: 'Not found' }, 404);
+  const parsed = inboxQuery.safeParse(
+    await c.req.json().catch(() => undefined),
+  );
+  if (!parsed.success) return invalid(c, parsed.error);
+  const { db, close } = createDb(parseConfig(c.env).DATABASE_URL);
+  try {
+    const found = await markRead(db, id, parsed.data.userId, parsed.data.app);
+    if (!found) return c.json({ error: 'Not found' }, 404);
+    return c.json({ id, read: true });
   } finally {
     await close();
   }

@@ -71,6 +71,12 @@ export function createHarness(
         body: JSON.stringify(body),
       }),
     request,
+    postJson: (path: string, body: unknown) =>
+      request(path, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
     getEmail: (id: string) => request(`/emails/${id}`),
     /**
      * Runs the queue consumer over everything queued so far. A message the

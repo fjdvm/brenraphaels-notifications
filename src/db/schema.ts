@@ -1,5 +1,6 @@
 import {
   boolean,
+  index,
   integer,
   pgTable,
   text,
@@ -27,3 +28,29 @@ export const emails = pgTable('emails', {
     .notNull()
     .defaultNow(),
 });
+
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    type: text('type').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    link: text('link'),
+    sendingApp: text('sending_app').notNull(),
+    targetApp: text('target_app').notNull(),
+    userId: text('user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    readAt: timestamp('read_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('notifications_inbox_idx').on(
+      t.targetApp,
+      t.userId,
+      t.createdAt.desc(),
+      t.id.desc(),
+    ),
+  ],
+);

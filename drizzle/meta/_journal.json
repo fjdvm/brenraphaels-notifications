@@ -22,6 +22,13 @@
       "when": 1792092003964,
       "tag": "0002_marketing_consent",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792093432732,
+      "tag": "0003_notifications",
+      "breakpoints": true
     }
   ]
 }
