@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notifications API Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#f8f8fb; --text:#2a2838; --muted:#6b6980; --faint:#9391a6; --line:#dddce6; --accent:#7a4fc4; --amber:#d9a21b;
+          --pill-bg:#ebe5f7; --pill-text:#5b3aa0; --term:#1b1428; --term-text:#e9c46a; --term-dim:#8f86a8;
+          --serif:'Newsreader',Georgia,'Times New Roman',serif; --sans:'Inter',system-ui,-apple-system,sans-serif; --mono:'JetBrains Mono',ui-monospace,Menlo,monospace; }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.65 var(--sans); }
+  .page { max-width:1000px; margin:0 auto; padding:56px 24px 96px; }
+  .eyebrow { font:500 10px var(--mono); letter-spacing:.16em; text-transform:uppercase; color:var(--accent); display:flex; align-items:center; gap:10px; }
+  .eyebrow::before { content:""; width:28px; border-top:1px solid var(--accent); }
+  h1 { font:600 44px/1.1 var(--serif); letter-spacing:-.01em; margin:14px 0 14px; color:#171523; }
+  .lede { max-width:560px; color:var(--muted); font-size:15px; margin:0 0 18px; }
+  .meta { display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px; font:11px var(--mono); color:var(--faint); }
+  .meta label { display:flex; align-items:center; gap:8px; }
+  .meta input { font:11px var(--mono); padding:4px 8px; border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--text); width:260px; max-width:100%; }
+  hr { border:0; border-top:1px solid var(--line); margin:36px 0 40px; }
+  .cols { display:grid; grid-template-columns:170px minmax(0,1fr); gap:56px; }
+  nav { position:sticky; top:32px; align-self:start; }
+  nav h2 { font:500 9px var(--mono); letter-spacing:.16em; text-transform:uppercase; color:var(--faint); margin:0 0 12px; }
+  nav ol { list-style:none; margin:0; padding:0; }
+  nav a { display:block; padding:5px 0 5px 10px; border-left:1px solid var(--line); color:var(--muted); text-decoration:none; font-size:11.5px; }
+  nav a:hover { color:var(--text); }
+  nav a.active { border-left-color:var(--amber); color:var(--text); font-weight:500; }
+  main { max-width:640px; }
+  section { margin:0 0 56px; scroll-margin-top:24px; }
+  section h2 { font:600 22px/1.2 var(--serif); margin:0 0 12px; color:#171523; display:flex; align-items:baseline; gap:8px; }
+  section h2 .n { font:500 10px var(--mono); color:var(--amber); }
+  section p { color:var(--muted); margin:0 0 12px; }
+  section strong { color:var(--text); }
+  h3 { font:600 12px var(--sans); color:var(--text); margin:20px 0 8px; }
+  .route { margin:0 0 12px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { font:500 10px var(--mono); letter-spacing:.04em; padding:2px 8px; border-radius:99px; border:1px solid var(--line); color:var(--muted); background:#fff; }
+  .b-system { color:var(--pill-text); border-color:#d6c9f0; background:var(--pill-bg); } .b-cron { color:#8a5a00; border-color:#ecd9a6; background:#fbf3dc; }
+  .b-open { color:#1b6b3a; border-color:#bfe3cc; background:#e4f4ea; }
+  code { font:11.5px var(--mono); background:var(--pill-bg); color:var(--pill-text); padding:1px 6px; border-radius:4px; }
+  .route code.path { font-size:12.5px; }
+  .method { font:600 11px var(--mono); color:var(--pill-text); }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; margin:0 0 6px; }
+  th, td { text-align:left; vertical-align:top; padding:7px 14px 7px 0; border-bottom:1px solid var(--line); color:var(--muted); }
+  th { font:500 9px var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--faint); }
+  td:first-child { width:38%; } table.narrow td:first-child { width:1%; white-space:nowrap; }
+  td code { display:inline-block; margin:0 2px 3px 0; overflow-wrap:anywhere; } td { overflow-wrap:anywhere; }
+  .status { font:500 11px var(--mono); } .s2 { color:#1b6b3a; } .s4 { color:#9a6a00; } .s5 { color:#b3261e; }
+  .term { position:relative; background:var(--term); border-radius:8px; margin:6px 0 14px; }
+  .term pre { margin:0; padding:20px 22px; overflow:auto; font:11.5px/1.75 var(--mono); color:var(--term-text); }
+  .term pre code { background:none; color:inherit; padding:0; font:inherit; }
+  .term .c { color:var(--term-dim); }
+  button.copy { position:absolute; top:8px; right:8px; font:10px var(--mono); padding:3px 8px; border:1px solid #3a2f52; border-radius:4px; background:transparent; color:var(--term-dim); cursor:pointer; opacity:0; transition:opacity .15s; }
+  .term:hover button.copy, button.copy:focus-visible { opacity:1; }
+  @media (max-width:760px) { .cols { grid-template-columns:1fr; gap:24px; } nav { position:static; } h1 { font-size:34px; } .page { padding-top:36px; } }
+</style></head>
+<body>
+<div class="page">
+  <div class="eyebrow">Documentation</div>
+  <h1>How to use the Notifications API</h1>
+  <p class="lede">Real-time in-app Notifications, Emails and the Ticket Conversation relay for the company Apps. This page covers every endpoint, how to authenticate, the live WebSocket events and the errors each route can answer with, plus one worked example each. It is written for the developers of the Portal, CRMS, POS, SIMS and HRMS apps.</p>
+  <div class="meta"><span>Notify, email, relay</span><span>·</span><span>Bearer-token access</span><span>·</span>
+    <label>Base URL for examples <input type="text" id="base" placeholder="https://your-notifications.example" autocomplete="off" aria-label="Base URL for examples"></label></div>
+  <hr>
+  <div class="cols">
+    <nav aria-label="Contents"><h2>Contents</h2><ol id="toc"></ol></nav>
+    <main id="content"></main>
+  </div>
+</div>
+<script>
+/* Mirrors src/docs/contract.ts and GET /openapi.json, the reference. Update them together. */
+const ROLES = { token:['Bearer token','b-system'], open:['no header','b-open'] };
+const H = '-H "Authorization: Bearer $API_TOKEN"';
+const JSONH = '-H "Content-Type: application/json"';
+const ID = '6f0c9a52-3d1e-4c8e-9a53-0f4b8b1d2c77';
+const note = (extra = '') => `{ "id": "${ID}", "type": "order.shipped", "title": "Order shipped",
+  "body": "Your order is on its way.", "link": "https://shop.example/orders/42",
+  "sendingApp": "POS", "targetApp": "Portal", "userId": "user-1",
+  "createdAt": "2026-10-16T03:50:17.000Z", "readAt": null${extra} }`;
+const inbox = '"userId":"user-1","app":"Portal"';
+const SECTIONS = [
+{ id:'basics', title:'Start here', role:'open', intro:
+  `Every route except the four listed under <em>No header</em> needs <code>Authorization: Bearer $API_TOKEN</code>. A missing or wrong token answers 401. JSON in and out. Validation problems answer <code>{"errors": {"field": ["message"]}}</code> with 400; other errors are <code>{"error": "…"}</code>. A <strong>Notification</strong> is a real-time in-app message to a user of an App. It is stored first, so a user who was offline still sees it later, then pushed to every open connection. An <strong>Email</strong> is queued and delivered in the background; look it up to see the outcome. A <strong>Conversation</strong> is only relayed between connected people and is never stored. The <code>userId</code> values are declared, not verified, until authentication exists.`,
+  tables:[{ title:'Rules to know', narrow:true, head:['Topic','Note'], rows:[
+    ['App','The system a user belongs to, for example <code>Portal</code>, <code>CRMS</code>, <code>POS</code>, <code>SIMS</code> or <code>HRMS</code>. A user is identified by <code>userId</code> <em>and</em> <code>app</code> together'],
+    ['Pagination','<code>GET /notifications</code> returns 20 by default (1 to 100). Pass <code>nextCursor</code> back as <code>cursor</code>; <code>null</code> means the last page'],
+    ['App email','One generic template: a title, body text and an optional button with a link. Verification and password reset are not App emails. It needs no marketing consent'],
+    ['Marketing email','Only CRMS may send it (<code>app</code> must be <code>"CRMS"</code>) and only to Subscribers (<code>subscriberConsent</code> must be <code>true</code>). A list holds 100 recipients at most'],
+    ['Email delivery','At least once. A temporary failure is retried for up to 24 hours; a permanent failure stops at once'],
+    ['Conversations','The service stores nothing and knows nothing about the Ticket. Each App keeps its own copy of every message and decides who may send']]},
+  { title:'Errors on every route that needs the token', narrow:true, head:['Status','When','Body'], rows:[
+    ['<span class="status s4">400</span>','Malformed JSON or a field that fails validation','<code>{"errors":{"userIds":["Needs at least one user id"]}}</code>'],
+    ['<span class="status s4">401</span>','No bearer token, or a wrong one','<code>Unauthorized</code>'],
+    ['<span class="status s4">404</span>','Unknown Notification or Email, or one that is not the recipient’s','<code>{"error":"Not found"}</code>'],
+    ['<span class="status s5">500</span>','Unexpected failure','<code>{"error":"Internal error"}</code>']]}] },
+{ id:'post-notifications', title:'Send a Notification', method:'POST', path:'/notifications', role:'token', intro:'Stores one Notification per user, then pushes each to that user’s open connections. A missed push loses nothing, because the Notification is already stored.',
+  tables:[{ title:'Body', head:['Field','Required','Notes'], rows:[
+    ['<code>type</code>','yes','Your own label, for example <code>order.shipped</code>'],
+    ['<code>title</code> <code>body</code>','yes','Nonempty strings'],
+    ['<code>link</code>','no','A full URL the user can open'],
+    ['<code>sendingApp</code>','yes','The App sending it'],
+    ['<code>targetApp</code>','yes','The App whose users receive it'],
+    ['<code>userIds</code>','yes','At least one user id']]}],
+  responses:[['201','<code>notifications</code> (one per user), <code>stored</code> (how many) and <code>connected</code> (how many recipients had at least one open connection)'],['400','Invalid body'],['401','Missing or wrong token']],
+  example:`curl -X POST "$BASE_URL/notifications" ${H} ${JSONH} \\
+  -d '{"type":"order.shipped","title":"Order shipped","body":"Your order is on its way.",
+       "link":"https://shop.example/orders/42","sendingApp":"POS","targetApp":"Portal",
+       "userIds":["user-1","user-2"]}'
+# 201 {"notifications":[ ${note()} , … ],"stored":2,"connected":1}` },
+{ id:'get-notifications', title:'List Notifications', method:'GET', path:'/notifications', role:'token', intro:'A user’s Notifications in one App, newest first.',
+  tables:[{ title:'Query', head:['Field','Required','Notes'], rows:[
+    ['<code>userId</code> <code>app</code>','yes','Whose inbox'],
+    ['<code>unread</code>','no','<code>true</code> for unread only'],
+    ['<code>limit</code>','no','1 to 100, default 20'],
+    ['<code>cursor</code>','no','The <code>nextCursor</code> of the previous page. An invalid one answers 400']]}],
+  responses:[['200','<code>notifications</code> and <code>nextCursor</code>'],['400','Missing user or App, or an invalid cursor']],
+  example:`curl -G "$BASE_URL/notifications" ${H} \\
+  --data-urlencode "userId=user-1" --data-urlencode "app=Portal" --data-urlencode "unread=true"
+# 200 {"notifications":[ ${note()} ],"nextCursor":null}` },
+{ id:'get-notifications-unread-count', title:'Count unread Notifications', method:'GET', path:'/notifications/unread-count', role:'token', intro:'For a badge on a bell icon.',
+  responses:[['200','<code>{"unread": 3}</code>'],['400','Missing user or App']],
+  example:`curl -G "$BASE_URL/notifications/unread-count" ${H} \\
+  --data-urlencode "userId=user-1" --data-urlencode "app=Portal"
+# 200 {"unread":3}` },
+{ id:'post-notifications-read-all', title:'Mark all read', method:'POST', path:'/notifications/read-all', role:'token', intro:'Marks every unread Notification of the user read. Open connections receive a <code>notifications.read</code> event with the ids that changed, so other tabs update.',
+  responses:[['200','<code>{"updated": 3}</code>'],['400','Missing user or App']],
+  example:`curl -X POST "$BASE_URL/notifications/read-all" ${H} ${JSONH} \\
+  -d '{${inbox}}'
+# 200 {"updated":3}` },
+{ id:'post-notifications-id-read', title:'Mark one read', method:'POST', path:'/notifications/:id/read', role:'token', intro:'The Notification must belong to the user and App in the body, otherwise it is not found. Marking a read Notification again is harmless and sends no event.',
+  responses:[['200','<code>{"id":"…","read":true}</code>'],['400','Missing user or App'],['404','Unknown Notification, or not this user’s']],
+  example:`curl -X POST "$BASE_URL/notifications/${ID}/read" ${H} ${JSONH} \\
+  -d '{${inbox}}'
+# 200 {"id":"${ID}","read":true}` },
+{ id:'get-live', title:'Live Notifications', method:'GET', path:'/live', role:'open', intro:'A WebSocket for one user in one App, one connection per tab. Browsers cannot set an <code>Authorization</code> header on a WebSocket, so this route needs no token. Pass <code>userId</code> and <code>app</code> as the query. A plain request without the upgrade answers 426. Clients only listen: anything they send is ignored, except <code>ping</code>, which is answered with <code>pong</code> for keep-alive.',
+  tables:[{ title:'Events from the server', narrow:true, head:['type','Meaning'], rows:[
+    ['<code>notification.created</code>','A new Notification, in <code>notification</code>'],
+    ['<code>notifications.read</code>','These <code>ids</code> were marked read, here or in another tab']]}],
+  responses:[['101','Switching to WebSocket'],['400','Missing user or App'],['426','Not a WebSocket upgrade']],
+  example:`const ws = new WebSocket("$BASE_URL/live?userId=user-1&app=Portal".replace(/^http/, "ws"));
+ws.onmessage = (e) => console.log(JSON.parse(e.data));
+# {"type":"notification.created","notification":{ … }}
+# {"type":"notifications.read","ids":["${ID}"]}` },
+{ id:'post-emails-app', title:'Send an App email', method:'POST', path:'/emails/app', role:'token', intro:'Queues a system Email built from the generic template. Delivery happens in the background; use the returned id to look up the outcome.',
+  tables:[{ title:'Body', head:['Field','Required','Notes'], rows:[
+    ['<code>to</code>','yes','An email address'],
+    ['<code>app</code>','yes','The App sending it'],
+    ['<code>title</code> <code>body</code>','yes','The subject and text'],
+    ['<code>button</code>','no','<code>{label, link}</code>, with an http or https link']]}],
+  responses:[['202','<code>{"id":"…","status":"queued"}</code>'],['400','Invalid body']],
+  example:`curl -X POST "$BASE_URL/emails/app" ${H} ${JSONH} \\
+  -d '{"to":"ana@example.com","app":"POS","title":"Your receipt","body":"Thanks for your order.",
+       "button":{"label":"View order","link":"https://shop.example/orders/42"}}'
+# 202 {"id":"${ID}","status":"queued"}` },
+{ id:'post-emails-marketing', title:'Send a Marketing email', method:'POST', path:'/emails/marketing', role:'token', intro:'Only CRMS may send it, and only to a Subscriber. The caller asserts the consent with <code>subscriberConsent: true</code>.',
+  tables:[{ title:'Body', head:['Field','Required','Notes'], rows:[
+    ['<code>to</code>','yes','The Subscriber’s address'],
+    ['<code>app</code>','yes','Must be <code>CRMS</code>'],
+    ['<code>subscriberConsent</code>','yes','Must be <code>true</code>'],
+    ['<code>title</code> <code>body</code>','yes','The subject and text'],
+    ['<code>images</code>','no','A list of https image URLs']]}],
+  responses:[['202','<code>{"id":"…","status":"queued"}</code>'],['400','Invalid body, another App, or consent not asserted']],
+  example:`curl -X POST "$BASE_URL/emails/marketing" ${H} ${JSONH} \\
+  -d '{"to":"ana@example.com","app":"CRMS","subscriberConsent":true,
+       "title":"Autumn sale","body":"20% off everything.","images":["https://cdn.example/sale.jpg"]}'
+# 202 {"id":"${ID}","status":"queued"}` },
+{ id:'post-emails-marketing-list', title:'Send a Marketing email to a list', method:'POST', path:'/emails/marketing/list', role:'token', intro:'The same Email to many Subscribers. One Email is created per distinct address (case ignored), each queued on its own, so one failure marks only that Email.',
+  tables:[{ title:'Body', head:['Field','Required','Notes'], rows:[
+    ['<code>recipients</code>','yes','1 to 100 addresses'],
+    ['<code>app</code> <code>subscriberConsent</code> <code>title</code> <code>body</code> <code>images</code>','','As for a single Marketing email']]}],
+  responses:[['202','<code>queued</code> (how many were queued) and <code>emails</code> (<code>{id, recipient}</code> each)'],['400','Invalid body, or too many recipients']],
+  example:`curl -X POST "$BASE_URL/emails/marketing/list" ${H} ${JSONH} \\
+  -d '{"recipients":["ana@example.com","ben@example.com"],"app":"CRMS","subscriberConsent":true,
+       "title":"Autumn sale","body":"20% off everything."}'
+# 202 {"queued":2,"emails":[{"id":"${ID}","recipient":"ana@example.com"}, …]}` },
+{ id:'get-emails-id', title:'Look up an Email', method:'GET', path:'/emails/:id', role:'token', intro:'The stored record of what was sent and its outcome. <code>status</code> is <code>queued</code> (still being tried), <code>sent</code> or <code>failed</code>.',
+  responses:[['200','The Email record, with <code>attempts</code> and <code>failureReason</code>'],['404','Unknown or malformed id']],
+  example:`curl "$BASE_URL/emails/${ID}" ${H}
+# 200 {"id":"${ID}","category":"app","template":"app-email","recipient":"ana@example.com",
+#   "sendingApp":"POS","status":"sent","attempts":1,"messageId":"<…@…>","failureReason":null, …}` },
+{ id:'get-conversations-ticketId-live', title:'Ticket Conversation', method:'GET', path:'/conversations/:ticketId/live', role:'open', intro:'A WebSocket onto a Ticket’s room, for its Customer and the Staff who claimed it. Every message goes to all <em>other</em> connections in the room, including the sender’s other tabs, and is never stored: someone who connects later gets no earlier messages. Pass <code>userId</code> and <code>role</code> (<code>Customer</code> or <code>Staff</code>) as the query; both are declared, not verified. Rooms of different Tickets are fully separate. A message for someone who is not connected is dropped, so when <code>delivered</code> is 0 the App should save it and send a Notification.',
+  tables:[{ title:'Send', narrow:true, head:['Frame','Notes'], rows:[
+    ['<code>{"type":"message","id":"…","text":"…"}</code>','Your own message id (up to 128 characters) and 1 to 2000 characters of text. Frames over 16 KB are malformed'],
+    ['<code>ping</code>','Answered with <code>pong</code>']]},
+  { title:'Receive', narrow:true, head:['type','Meaning'], rows:[
+    ['<code>message</code>','From someone else: <code>id</code>, <code>from</code> (<code>{userId, role}</code>), <code>text</code> and <code>sentAt</code>, a time set by the service'],
+    ['<code>message.delivered</code>','To the sender: <code>id</code> and <code>delivered</code>, how many other connections received it'],
+    ['<code>presence</code>','Someone else connected or disconnected: <code>event</code>, <code>userId</code>, <code>role</code>'],
+    ['<code>error</code>','<code>code</code> is <code>malformed</code>, <code>too_long</code> or <code>rate_limited</code> (20 frames in 10 seconds per connection, bad ones included). The offending message is not relayed']]}],
+  responses:[['101','Switching to WebSocket'],['400','Missing user id or an unknown role'],['404','A Ticket id over 128 characters'],['426','Not a WebSocket upgrade']],
+  example:`const ws = new WebSocket("$BASE_URL/conversations/ticket-77/live?userId=cust-1&role=Customer".replace(/^http/, "ws"));
+ws.onopen = () => ws.send(JSON.stringify({ type: "message", id: "m1", text: "Hello" }));
+# {"type":"presence","event":"connected","userId":"staff-1","role":"Staff"}
+# {"type":"message.delivered","id":"m1","delivered":1}
+# {"type":"message","id":"m9","from":{"userId":"staff-1","role":"Staff"},"text":"Hi!","sentAt":"2026-10-16T03:50:17.000Z"}` },
+{ id:'post-mcp', title:'Use it from an agent', method:'POST', path:'/mcp', role:'token', intro:'A remote MCP server, so an AI agent can send Notifications and Emails with tools instead of hand-written requests. Point the client at <code>/mcp</code> and configure the same bearer token as the API. Every tool does what the matching route does, because it calls that route, and fails with the same message, returned as a tool error. The live WebSocket routes are not tools: they are for browsers.',
+  tables:[{ title:'Tools', narrow:true, head:['Tool','Same as','Notes'], rows:[
+    ['<code>send_notification</code>','<code>POST /notifications</code>','Returns <code>stored</code> and <code>connected</code>'],
+    ['<code>list_notifications</code>','<code>GET /notifications</code>','Takes <code>userId</code>, <code>app</code>, optional <code>unread</code>, <code>limit</code>, <code>cursor</code>'],
+    ['<code>get_unread_count</code>','<code>GET /notifications/unread-count</code>',''],
+    ['<code>mark_notification_read</code>','<code>POST /notifications/:id/read</code>',''],
+    ['<code>mark_all_notifications_read</code>','<code>POST /notifications/read-all</code>',''],
+    ['<code>send_app_email</code>','<code>POST /emails/app</code>',''],
+    ['<code>send_marketing_email</code>','<code>POST /emails/marketing</code>','CRMS only'],
+    ['<code>send_marketing_email_list</code>','<code>POST /emails/marketing/list</code>','CRMS only'],
+    ['<code>get_email</code>','<code>GET /emails/:id</code>','']]}],
+  responses:[['200','A JSON-RPC reply. A failed tool call is a result with <code>isError: true</code> and the API’s message'],['400','Not a valid JSON-RPC request'],['401','Missing or wrong token']],
+  example:`# Claude Code
+claude mcp add --transport http notifications $BASE_URL/mcp \\
+  --header "Authorization: Bearer $API_TOKEN"
+
+# Codex: add to ~/.codex/config.toml
+[mcp_servers.notifications]
+url = "$BASE_URL/mcp"
+http_headers = { "Authorization" = "Bearer $API_TOKEN" }
+
+# Cursor: add to ~/.cursor/mcp.json (or .cursor/mcp.json in a project)
+{ "mcpServers": { "notifications": { "url": "$BASE_URL/mcp",
+    "headers": { "Authorization": "Bearer $API_TOKEN" } } } }
+
+# Kiro: add to .kiro/settings/mcp.json (or ~/.kiro/settings/mcp.json)
+{ "mcpServers": { "notifications": { "url": "$BASE_URL/mcp",
+    "headers": { "Authorization": "Bearer $API_TOKEN" } } } }` },
+{ id:'get-openapi.json', title:'OpenAPI document', method:'GET', path:'/openapi.json', role:'open', intro:'The machine-readable description of every endpoint, generated from the same schemas the routes validate with. Use it to generate a client. No header needed.',
+  responses:[['200','An OpenAPI 3.1 document']],
+  example:`curl "$BASE_URL/openapi.json"
+# 200 {"openapi":"3.1.0","info":{"title":"Notifications", …}, "paths":{…}}` },
+{ id:'get-docs', title:'This guide', method:'GET', path:'/docs', role:'open', intro:'The page you are reading. No header needed.',
+  responses:[['200','This HTML page']],
+  example:`curl "$BASE_URL/docs"` }
+];
+
+const $ = (s, r=document) => r.querySelector(s);
+const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const table = t => `${t.title ? `<h3>${t.title}</h3>` : ''}<table${t.narrow ? ' class="narrow"' : ''}><thead><tr>${t.head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${t.rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+const statusClass = s => 's' + s[0];
+// Dim comment lines (the sample responses) in the terminal blocks.
+const termHtml = text => esc(text).split('\n').map(l => /^#/.test(l) ? `<span class="c">${l}</span>` : l).join('\n');
+function render(base) {
+  $('#content').innerHTML = SECTIONS.map((s, i) => {
+    const [roleText, roleClass] = ROLES[s.role];
+    const route = `<div class="route">${s.method ? `<span class="method">${s.method}</span><code class="path">${s.path}</code>` : ''}<span class="badge ${roleClass}">${roleText}</span></div>`;
+    const resp = s.responses ? table({ title:'Responses', narrow:true, head:['Status','Body'], rows:s.responses.map(([c,b])=>[`<span class="status ${statusClass(c)}">${c}</span>`, b]) }) : '';
+    const ex = s.example ? `<h3>Worked example</h3><div class="term"><button class="copy" type="button">Copy</button><pre><code>${termHtml(s.example.replaceAll('$BASE_URL', base || '$BASE_URL'))}</code></pre></div>` : '';
+    return `<section id="${s.id}"><h2><span class="n">${String(i + 1).padStart(2, '0')}</span>${s.title}</h2>${route}
+      <p>${s.intro}</p>${(s.tables||[]).map(table).join('')}${resp}${ex}</section>`;
+  }).join('');
+}
+$('#toc').innerHTML = SECTIONS.map((s, i) => `<li><a href="#${s.id}">${i + 1}. ${s.title}</a></li>`).join('');
+let base = location.origin.startsWith('http') ? location.origin : '';
+try { base = localStorage.getItem('notifications-base') ?? base; } catch {}
+$('#base').value = base;
+render(base);
+$('#base').addEventListener('input', e => { base = e.target.value.trim().replace(/\/$/,''); try { localStorage.setItem('notifications-base', base); } catch {} render(base); observe(); });
+$('#content').addEventListener('click', e => {
+  if (!e.target.matches('button.copy')) return;
+  const btn = e.target;
+  navigator.clipboard?.writeText($('code', btn.parentElement).textContent).then(() => { btn.textContent = 'Copied'; setTimeout(() => btn.textContent = 'Copy', 1200); });
+});
+let observer;
+function observe() {
+  observer?.disconnect();
+  observer = new IntersectionObserver(entries => {
+    for (const entry of entries) if (entry.isIntersecting) {
+      document.querySelectorAll('#toc a').forEach(a => a.classList.toggle('active', a.hash === '#' + entry.target.id));
+    }
+  }, { rootMargin: '0px 0px -70% 0px' });
+  document.querySelectorAll('section').forEach(el => observer.observe(el));
+}
+observe();
+</script>
+</body>
+</html>

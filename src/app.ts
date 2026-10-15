@@ -13,16 +13,21 @@ import {
   markRead,
 } from './notifications/service';
 import { connectToHub, connectToRoom, pushToUser } from './live/push';
+import guide from './docs/guide.html';
+import { buildOpenApiDocument } from './docs/openapi';
+import { handleMcp } from './mcp/router';
 import { connectQuery } from './conversations/schemas';
-import { notificationResponse } from './notifications/schemas';
 import { appEmail } from './templates/app-email';
 import { marketing } from './templates/marketing';
-
-const appEmailRequest = z.object({
-  to: z.email(),
-  app: z.string().min(1),
-  ...appEmail.schema.shape,
-});
+import {
+  appEmailRequest,
+  inboxQuery,
+  listQuery,
+  marketingEmailRequest,
+  marketingListRequest,
+  sendNotificationRequest,
+} from './requests';
+import { notificationResponse } from './notifications/schemas';
 
 function tokenMatches(given: string, expected: string) {
   const enc = new TextEncoder();
@@ -53,16 +58,7 @@ const requireToken = bearerAuth({
 app.use('/emails/*', requireToken);
 app.use('/notifications', requireToken);
 app.use('/notifications/*', requireToken);
-
-const marketingEmailRequest = z.object({
-  to: z.email(),
-  // A declared check only; real caller identity waits for authentication.
-  app: z.literal('CRMS', { error: 'Only CRMS may send Marketing email' }),
-  subscriberConsent: z.literal(true, {
-    error: 'Must assert that the recipient is a Subscriber',
-  }),
-  ...marketing.schema.shape,
-});
+app.use('/mcp', requireToken);
 
 interface EmailRequest {
   to: string;
@@ -117,15 +113,7 @@ app.post('/emails/marketing', (c) =>
 
 app.post('/emails/marketing/list', async (c) => {
   const config = parseConfig(c.env);
-  const max = config.MARKETING_MAX_RECIPIENTS;
-  const { to: _to, ...single } = marketingEmailRequest.shape;
-  const schema = z.object({
-    ...single,
-    recipients: z
-      .array(z.email())
-      .min(1, 'Needs at least one recipient')
-      .max(max, `Too many recipients: the maximum is ${max}`),
-  });
+  const schema = marketingListRequest(config.MARKETING_MAX_RECIPIENTS);
   const parsed = schema.safeParse(await c.req.json().catch(() => undefined));
   if (!parsed.success) return invalid(c, parsed.error);
   const {
@@ -194,27 +182,6 @@ app.get('/emails/:id', async (c) => {
   } finally {
     await close();
   }
-});
-
-const sendNotificationRequest = z.object({
-  type: z.string().min(1),
-  title: z.string().min(1),
-  body: z.string().min(1),
-  link: z.url().optional(),
-  sendingApp: z.string().min(1),
-  targetApp: z.string().min(1),
-  userIds: z.array(z.string().min(1)).min(1, 'Needs at least one user id'),
-});
-
-const inboxQuery = z.object({
-  userId: z.string().min(1),
-  app: z.string().min(1),
-});
-
-const listQuery = inboxQuery.extend({
-  unread: z.enum(['true', 'false']).optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-  cursor: z.string().min(1).optional(),
 });
 
 app.post('/notifications', async (c) => {
@@ -344,3 +311,14 @@ app.get('/conversations/:ticketId/live', (c) => {
   if (!parsed.success) return invalid(c, parsed.error);
   return connectToRoom(c.env, ticketId, parsed.data, c.req.raw);
 });
+
+// The guide and the OpenAPI document need no token: they describe the API.
+const openApiDocument = buildOpenApiDocument();
+app.get('/openapi.json', (c) => c.json(openApiDocument));
+app.get('/docs', (c) => c.html(guide));
+
+// Stateless remote MCP server. Each tool calls a route of this app in-process
+// with the caller's own token.
+app.post('/mcp', (c) =>
+  handleMcp(c.req.raw, (request) => app.fetch(request, c.env, c.executionCtx)),
+);
