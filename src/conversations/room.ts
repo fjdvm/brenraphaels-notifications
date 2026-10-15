@@ -68,8 +68,23 @@ export class ConversationRoom {
 
   webSocketMessage(ws: WebSocket, data: string | ArrayBuffer) {
     const me = ws.deserializeAttachment() as Attachment;
-    if (typeof data !== 'string' || data.length > MAX_FRAME_BYTES) {
-      return reply(ws, 'malformed', 'Expected a JSON text frame');
+    // Every frame counts, valid or not, so bad frames cannot flood either.
+    const now = Date.now();
+    if (now - me.windowStart >= RATE_WINDOW_MS) {
+      me.windowStart = now;
+      me.count = 0;
+    }
+    me.count++;
+    ws.serializeAttachment(me);
+    if (me.count > RATE_LIMIT) {
+      return reply(ws, 'rate_limited', 'Too many messages');
+    }
+
+    if (
+      typeof data !== 'string' ||
+      new TextEncoder().encode(data).byteLength > MAX_FRAME_BYTES
+    ) {
+      return reply(ws, 'malformed', 'Expected a JSON text frame under 16 KB');
     }
     let json: unknown;
     try {
@@ -89,18 +104,6 @@ export class ConversationRoom {
         ? reply(ws, 'too_long', `Over ${MAX_TEXT_LENGTH} characters`, echoId)
         : reply(ws, 'malformed', 'Not a message', echoId);
     }
-
-    const now = Date.now();
-    if (now - me.windowStart >= RATE_WINDOW_MS) {
-      me.windowStart = now;
-      me.count = 0;
-    }
-    if (me.count >= RATE_LIMIT) {
-      ws.serializeAttachment(me);
-      return reply(ws, 'rate_limited', 'Too many messages', parsed.data.id);
-    }
-    me.count++;
-    ws.serializeAttachment(me);
 
     const delivered = this.broadcast(ws, {
       type: 'message',

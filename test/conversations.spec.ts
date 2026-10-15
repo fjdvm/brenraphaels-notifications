@@ -183,11 +183,14 @@ describe('rejecting bad input', () => {
     expect(events(customer).at(-1)).toMatchObject({
       type: 'error',
       code: 'rate_limited',
-      id: 'over',
     });
     expect(
       events(staff).filter((e) => e.type === 'message' && e.id === 'over'),
     ).toEqual([]);
+    // Bad frames use up the allowance too.
+    const flooder = (await h.join(t, 'cust-2', 'Customer')).socket;
+    for (let i = 0; i < 21; i++) flooder.say('garbage');
+    expect(events(flooder).at(-1)).toMatchObject({ code: 'rate_limited' });
     // Another connection, even the same user's, has its own allowance.
     const tab2 = (await h.join(t, 'cust-1', 'Customer')).socket;
     tab2.say(msg('fresh'));

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Env } from '../config';
+import type { Role } from '../conversations/schemas';
 import type { LiveEvent } from '../notifications/schemas';
 
 const pushResult = z.object({ connected: z.number().int().nonnegative() });
@@ -47,7 +48,7 @@ export function connectToHub(
 export function connectToRoom(
   env: Env,
   ticketId: string,
-  who: { userId: string; role: string },
+  who: { userId: string; role: Role },
   request: Request,
 ) {
   const room = env.CONVERSATION_ROOM.get(
