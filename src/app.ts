@@ -12,6 +12,8 @@ import {
   markAllRead,
   markRead,
 } from './notifications/service';
+import { connectToHub, pushToUser } from './live/push';
+import { notificationResponse } from './notifications/schemas';
 import { appEmail } from './templates/app-email';
 import { marketing } from './templates/marketing';
 
@@ -203,19 +205,6 @@ const sendNotificationRequest = z.object({
   userIds: z.array(z.string().min(1)).min(1, 'Needs at least one user id'),
 });
 
-const notificationResponse = z.object({
-  id: z.uuid(),
-  type: z.string(),
-  title: z.string(),
-  body: z.string(),
-  link: z.string().nullable(),
-  sendingApp: z.string(),
-  targetApp: z.string(),
-  userId: z.string(),
-  createdAt: z.date(),
-  readAt: z.date().nullable(),
-});
-
 const inboxQuery = z.object({
   userId: z.string().min(1),
   app: z.string().min(1),
@@ -235,8 +224,22 @@ app.post('/notifications', async (c) => {
   const { db, close } = createDb(parseConfig(c.env).DATABASE_URL);
   try {
     const rows = await createNotifications(db, parsed.data);
+    const stored = rows.map((r) => notificationResponse.parse(r));
+    // Pushed only once stored, so a missed push loses nothing.
+    const reached = await Promise.all(
+      stored.map((notification) =>
+        pushToUser(c.env, notification.targetApp, notification.userId, {
+          type: 'notification.created',
+          notification,
+        }),
+      ),
+    );
     return c.json(
-      { notifications: rows.map((r) => notificationResponse.parse(r)) },
+      {
+        notifications: stored,
+        stored: stored.length,
+        connected: reached.reduce((sum, n) => sum + n, 0),
+      },
       201,
     );
   } finally {
@@ -284,9 +287,14 @@ app.post('/notifications/read-all', async (c) => {
   if (!parsed.success) return invalid(c, parsed.error);
   const { db, close } = createDb(parseConfig(c.env).DATABASE_URL);
   try {
-    return c.json({
-      updated: await markAllRead(db, parsed.data.userId, parsed.data.app),
-    });
+    const { userId, app: targetApp } = parsed.data;
+    const ids = await markAllRead(db, userId, targetApp);
+    if (ids.length > 0)
+      await pushToUser(c.env, targetApp, userId, {
+        type: 'notifications.read',
+        ids,
+      });
+    return c.json({ updated: ids.length });
   } finally {
     await close();
   }
@@ -302,10 +310,25 @@ app.post('/notifications/:id/read', async (c) => {
   if (!parsed.success) return invalid(c, parsed.error);
   const { db, close } = createDb(parseConfig(c.env).DATABASE_URL);
   try {
-    const found = await markRead(db, id, parsed.data.userId, parsed.data.app);
+    const { userId, app: targetApp } = parsed.data;
+    const { found, changed } = await markRead(db, id, userId, targetApp);
     if (!found) return c.json({ error: 'Not found' }, 404);
+    if (changed)
+      await pushToUser(c.env, targetApp, userId, {
+        type: 'notifications.read',
+        ids: [id],
+      });
     return c.json({ id, read: true });
   } finally {
     await close();
   }
+});
+
+// Browsers cannot set an Authorization header on a WebSocket, so this route
+// is outside the bearer token. The user id is declared, not verified, until
+// authentication exists.
+app.get('/live', (c) => {
+  const parsed = inboxQuery.safeParse(c.req.query());
+  if (!parsed.success) return invalid(c, parsed.error);
+  return connectToHub(c.env, parsed.data.app, parsed.data.userId, c.req.raw);
 });

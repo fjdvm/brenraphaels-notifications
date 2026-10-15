@@ -1,5 +1,6 @@
 import type { EmailJob, Env } from '../src/config';
 import worker from '../src/index';
+import { createHubNamespace, type FakeSocket } from './fake-hub';
 import { smtp } from './smtp-stub';
 
 /** The Worker's public surface with SMTP stubbed and the queue captured. */
@@ -22,6 +23,7 @@ export function createHarness(
     MARKETING_EMAIL_SENDER: 'marketing@example.com',
     MARKETING_EMAIL_SENDER_NAME: 'Test Marketing',
     API_TOKEN: 'test-token-0123456789',
+    NOTIFICATION_HUB: createHubNamespace(),
     EMAIL_QUEUE: { send: async (job: EmailJob) => void queued.push(job) },
     ...overrides,
   } as unknown as Env;
@@ -77,6 +79,15 @@ export function createHarness(
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       }),
+    /** Opens a live connection through the Worker, as a browser would. */
+    async connect(userId: string, app: string) {
+      const res = await request(
+        `/live?userId=${userId}&app=${app}`,
+        { headers: { upgrade: 'websocket' } },
+        false,
+      );
+      return { res, socket: (res as any).webSocket as FakeSocket };
+    },
     getEmail: (id: string) => request(`/emails/${id}`),
     /**
      * Runs the queue consumer over everything queued so far. A message the

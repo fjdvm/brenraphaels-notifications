@@ -42,6 +42,7 @@ export interface Env extends Record<string, unknown> {
   API_TOKEN: string;
   MARKETING_MAX_RECIPIENTS?: string | number;
   EMAIL_QUEUE: Queue<EmailJob>;
+  NOTIFICATION_HUB: DurableObjectNamespace;
 }
 
 export interface EmailJob {

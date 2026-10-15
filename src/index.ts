@@ -4,6 +4,8 @@ import { createDb } from './db/client';
 import { retryDelaySeconds } from './emails/retry';
 import { deliverEmail } from './emails/service';
 
+export { NotificationHub } from './live/hub';
+
 export default {
   fetch: app.fetch,
 

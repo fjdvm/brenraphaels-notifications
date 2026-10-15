@@ -99,7 +99,10 @@ export async function countUnread(db: Db, userId: string, app: string) {
   return row!.n;
 }
 
-/** Returns false when the user has no such Notification in that App. */
+/**
+ * `found` is false when the user has no such Notification in that App;
+ * `changed` is false when it was already read.
+ */
 export async function markRead(
   db: Db,
   id: string,
@@ -111,17 +114,20 @@ export async function markRead(
     eq(notifications.userId, userId),
     eq(notifications.targetApp, app),
   );
-  await db
+  const updated = await db
     .update(notifications)
     .set({ readAt: new Date() })
-    .where(and(owned, isNull(notifications.readAt)));
+    .where(and(owned, isNull(notifications.readAt)))
+    .returning({ id: notifications.id });
+  if (updated.length > 0) return { found: true, changed: true };
   const found = await db
     .select({ id: notifications.id })
     .from(notifications)
     .where(owned);
-  return found.length > 0;
+  return { found: found.length > 0, changed: false };
 }
 
+/** Returns the ids that were unread and are now read. */
 export async function markAllRead(db: Db, userId: string, app: string) {
   const rows = await db
     .update(notifications)
@@ -134,5 +140,5 @@ export async function markAllRead(db: Db, userId: string, app: string) {
       ),
     )
     .returning({ id: notifications.id });
-  return rows.length;
+  return rows.map((r) => r.id);
 }
