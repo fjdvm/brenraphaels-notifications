@@ -64,6 +64,12 @@ export function createHarness(
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       }),
+    postMarketingList: (body: unknown) =>
+      request('/emails/marketing/list', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
     request,
     getEmail: (id: string) => request(`/emails/${id}`),
     /**

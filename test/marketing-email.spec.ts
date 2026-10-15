@@ -122,3 +122,92 @@ describe('Marketing email delivery', () => {
     expect(h.smtpCalls[0]!.email.html).not.toContain('<script>');
   });
 });
+
+describe('Marketing email to a list of Subscribers', () => {
+  const { to: _to, ...rest } = valid;
+  const list = (recipients: string[]) => ({ ...rest, recipients });
+
+  it('creates and queues one Email per recipient, each with consent', async () => {
+    const h = createHarness();
+    const res = await h.postMarketingList(
+      list(['a@example.com', 'b@example.com']),
+    );
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as any;
+    expect(body.queued).toBe(2);
+    expect(h.queued).toHaveLength(2);
+    for (const { id, recipient } of body.emails) {
+      const record = (await (await h.getEmail(id)).json()) as any;
+      expect(record).toMatchObject({
+        recipient,
+        status: 'queued',
+        subscriberConsent: true,
+        category: 'marketing',
+      });
+    }
+  });
+
+  it('rejects a list over the configured maximum', async () => {
+    const h = createHarness({ MARKETING_MAX_RECIPIENTS: '2' });
+    const res = await h.postMarketingList(
+      list(['a@example.com', 'b@example.com', 'c@example.com']),
+    );
+    expect(res.status).toBe(400);
+    expect((await errorsOf(res)).recipients[0]).toContain('maximum is 2');
+    expect(h.queued).toHaveLength(0);
+  });
+
+  it('requires consent for the whole list', async () => {
+    const h = createHarness();
+    const res = await h.postMarketingList({
+      ...list(['a@example.com']),
+      subscriberConsent: false,
+    });
+    expect(res.status).toBe(400);
+    expect(h.queued).toHaveLength(0);
+  });
+
+  it('sends a duplicate address once', async () => {
+    const h = createHarness();
+    const res = await h.postMarketingList(
+      list(['a@example.com', 'A@Example.com', 'b@example.com']),
+    );
+    expect(((await res.json()) as any).queued).toBe(2);
+    await h.drainQueue();
+    expect(h.smtpCalls).toHaveLength(2);
+  });
+
+  it('delivers the rest when one recipient fails permanently', async () => {
+    const h = createHarness();
+    const res = await h.postMarketingList(
+      list(['a@example.com', 'bad@example.com', 'c@example.com']),
+    );
+    const { emails } = (await res.json()) as any;
+    h.scriptSmtp('ok', new Error('RCPT TO 550 no such user'), 'ok');
+    await h.drainQueue();
+    const statuses = await Promise.all(
+      emails.map(
+        async (e: any) =>
+          ((await (await h.getEmail(e.id)).json()) as any).status,
+      ),
+    );
+    expect(statuses).toEqual(['sent', 'failed', 'sent']);
+  });
+
+  it('reports only the Emails actually queued when queueing fails for one', async () => {
+    const h = createHarness();
+    let n = 0;
+    (h.env as any).EMAIL_QUEUE = {
+      send: async () => {
+        if (++n === 2) throw new Error('queue down');
+      },
+    };
+    const res = await h.postMarketingList(
+      list(['a@example.com', 'b@example.com', 'c@example.com']),
+    );
+    const body = (await res.json()) as any;
+    expect(body.queued).toBe(2);
+    const record = (await (await h.getEmail(body.emails[1].id)).json()) as any;
+    expect(record.status).toBe('failed');
+  });
+});

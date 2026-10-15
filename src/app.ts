@@ -60,6 +60,14 @@ interface EmailRequest {
   subscriberConsent?: boolean;
 }
 
+function invalid(c: Context, error: z.ZodError) {
+  const errors: Record<string, string[]> = {};
+  for (const issue of error.issues) {
+    (errors[issue.path.join('.') || '_'] ??= []).push(issue.message);
+  }
+  return c.json({ errors }, 400);
+}
+
 async function queueEmail(
   c: Context<{ Bindings: Env }>,
   schema: z.ZodType<EmailRequest>,
@@ -68,13 +76,7 @@ async function queueEmail(
   const config = parseConfig(c.env);
   const json = await c.req.json().catch(() => undefined);
   const parsed = schema.safeParse(json);
-  if (!parsed.success) {
-    const errors: Record<string, string[]> = {};
-    for (const issue of parsed.error.issues) {
-      (errors[issue.path.join('.') || '_'] ??= []).push(issue.message);
-    }
-    return c.json({ errors }, 400);
-  }
+  if (!parsed.success) return invalid(c, parsed.error);
   const { to, app: sendingApp, subscriberConsent, ...values } = parsed.data;
   const { db, close } = createDb(config.DATABASE_URL);
   try {
@@ -102,6 +104,59 @@ app.post('/emails/app', (c) => queueEmail(c, appEmailRequest, appEmail.name));
 app.post('/emails/marketing', (c) =>
   queueEmail(c, marketingEmailRequest, marketing.name),
 );
+
+app.post('/emails/marketing/list', async (c) => {
+  const config = parseConfig(c.env);
+  const max = config.MARKETING_MAX_RECIPIENTS;
+  const { to: _to, ...single } = marketingEmailRequest.shape;
+  const schema = z.object({
+    ...single,
+    recipients: z
+      .array(z.email())
+      .min(1, 'Needs at least one recipient')
+      .max(max, `Too many recipients: the maximum is ${max}`),
+  });
+  const parsed = schema.safeParse(await c.req.json().catch(() => undefined));
+  if (!parsed.success) return invalid(c, parsed.error);
+  const {
+    recipients,
+    app: sendingApp,
+    subscriberConsent,
+    ...values
+  } = parsed.data;
+
+  // One Email per distinct address; addresses differing only in case are the same.
+  const unique = [
+    ...new Map(recipients.map((r) => [r.toLowerCase(), r])).values(),
+  ];
+  const { db, close } = createDb(config.DATABASE_URL);
+  try {
+    const emails: Array<{ id: string; recipient: string }> = [];
+    for (const recipient of unique) {
+      const email = await createEmail(db, config, {
+        template: marketing.name,
+        recipient,
+        sendingApp,
+        values,
+        subscriberConsent,
+      });
+      emails.push({ id: email.id, recipient });
+    }
+    // Each Email is queued on its own; a failure here marks only that Email.
+    let queued = 0;
+    for (const { id } of emails) {
+      try {
+        await c.env.EMAIL_QUEUE.send({ emailId: id });
+        queued++;
+      } catch (err) {
+        await markEnqueueFailed(db, id, err);
+      }
+    }
+    return c.json({ queued, emails }, 202);
+  } finally {
+    await close();
+  }
+});
 
 app.get('/emails/:id', async (c) => {
   const config = parseConfig(c.env);

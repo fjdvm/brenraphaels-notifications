@@ -11,6 +11,7 @@ const configSchema = z.object({
   MARKETING_EMAIL_SENDER: z.string().email(),
   MARKETING_EMAIL_SENDER_NAME: z.string().min(1).optional(),
   API_TOKEN: z.string().min(16),
+  MARKETING_MAX_RECIPIENTS: z.coerce.number().int().positive().default(100),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -39,6 +40,7 @@ export interface Env extends Record<string, unknown> {
   MARKETING_EMAIL_SENDER: string;
   MARKETING_EMAIL_SENDER_NAME?: string;
   API_TOKEN: string;
+  MARKETING_MAX_RECIPIENTS?: string | number;
   EMAIL_QUEUE: Queue<EmailJob>;
 }
 
