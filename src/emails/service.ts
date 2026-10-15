@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import type { Config } from '../config';
 import type { Db } from '../db/client';
 import { emails } from '../db/schema';
-import { newMessageId, relayHasMessage, sendViaSmtp } from '../smtp';
+import { newMessageId, sendViaSmtp } from '../smtp';
 import { templates } from '../templates/registry';
 import {
   PermanentFailure,
@@ -99,14 +99,7 @@ export async function deliverEmail(
     await db.update(emails).set({ messageId }).where(eq(emails.id, email.id));
   }
 
-  // An earlier attempt may have been accepted without us hearing; don't send twice.
-  if (email.attempts > 0 && (await relayHasMessage(config, messageId))) {
-    await markSent(db, id, email.attempts);
-    return {};
-  }
-
-  // Recorded before sending, so a crash after the relay accepts still leaves
-  // the Email looking attempted and the next delivery runs the check above.
+  // Recorded before sending, so a crash mid-send still counts as an attempt.
   const attempts = email.attempts + 1;
   await update(db, id, { attempts });
 

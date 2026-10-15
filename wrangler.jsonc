@@ -13,5 +13,5 @@
     "APP_EMAIL_SENDER": "jude.nitram08@gmail.com",
     "APP_EMAIL_SENDER_NAME": "Bren Raphael's"
   }
-  // Secrets (set with `wrangler secret put`): SMTP_USER, SMTP_PASSWORD, DATABASE_URL, API_TOKEN, BREVO_API_KEY (optional, enables the duplicate-send check)
+  // Secrets (set with `wrangler secret put`): SMTP_USER, SMTP_PASSWORD, DATABASE_URL, API_TOKEN
 }

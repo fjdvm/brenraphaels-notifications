@@ -1,4 +1,3 @@
-import { vi } from 'vitest';
 import type { EmailJob, Env } from '../src/config';
 import worker from '../src/index';
 import { smtp } from './smtp-stub';
@@ -9,12 +8,6 @@ export function createHarness(
 ) {
   const queued: EmailJob[] = [];
   smtp.reset();
-
-  // Brevo's events API: knows exactly the Message-IDs the stubbed relay accepted.
-  vi.stubGlobal('fetch', async (url: string) => {
-    const id = new URL(url).searchParams.get('messageId')!;
-    return Response.json({ events: smtp.accepted.has(id) ? [{}] : [] });
-  });
 
   const env = {
     SMTP_HOST: 'smtp.example.com',
@@ -27,7 +20,6 @@ export function createHarness(
     APP_EMAIL_SENDER: 'apps@example.com',
     APP_EMAIL_SENDER_NAME: 'Test Sender',
     API_TOKEN: 'test-token-0123456789',
-    BREVO_API_KEY: 'brevo-key',
     EMAIL_QUEUE: { send: async (job: EmailJob) => void queued.push(job) },
     ...overrides,
   } as unknown as Env;

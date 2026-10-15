@@ -92,7 +92,7 @@ describe('permanent failures', () => {
   });
 });
 
-describe('no duplicate sends', () => {
+describe('Message-ID', () => {
   it('reuses one Message-ID across attempts', async () => {
     const h = createHarness();
     h.scriptSmtp(new Error('Socket timeout!'));
@@ -106,31 +106,25 @@ describe('no duplicate sends', () => {
     ]);
   });
 
-  it('marks the Email sent without resending when Brevo already accepted it', async () => {
+  it('sends again with the same Message-ID after a timeout, so the recipient can dedupe', async () => {
     const h = createHarness();
     h.scriptSmtp({
       acceptedThen: new Error('Timeout while waiting for smtp server response'),
     });
     const { status } = await queueOne(h);
+    const { messageId } = await status();
 
-    expect((await h.drainQueue()).map((r) => r.delaySeconds)).toEqual([30]);
-    expect(await h.drainQueue()).toEqual([]);
-
-    expect(h.smtpCalls).toHaveLength(1);
-    expect(await status()).toMatchObject({ status: 'sent', attempts: 1 });
-  });
-
-  it('sends again when Brevo has no record of the earlier attempt', async () => {
-    const h = createHarness();
-    h.scriptSmtp(new Error('Socket timeout!'));
-    const { status } = await queueOne(h);
     await h.drainQueue();
     await h.drainQueue();
-    expect(h.smtpCalls).toHaveLength(2);
+
+    expect(h.smtpCalls.map((c) => c.email.headers['Message-ID'])).toEqual([
+      messageId,
+      messageId,
+    ]);
     expect(await status()).toMatchObject({ status: 'sent', attempts: 2 });
   });
 
-  it('records the attempt before sending, so a crash after acceptance is still checked', async () => {
+  it('records the attempt before sending, so a crash mid-send still counts', async () => {
     const h = createHarness();
     const { status } = await queueOne(h);
     let duringSend: any;
@@ -139,24 +133,6 @@ describe('no duplicate sends', () => {
     };
     await h.drainQueue();
     expect(duringSend).toMatchObject({ status: 'queued', attempts: 1 });
-  });
-
-  it('treats a delivery after a lost write as a retry and checks Brevo first', async () => {
-    const h = createHarness();
-    const { id, status } = await queueOne(h);
-    await h.drainQueue();
-    // Simulate the redelivery of a message whose send was accepted but never recorded.
-    const { createDb } = await import('../src/db/client');
-    const { parseConfig } = await import('../src/config');
-    const { emails } = await import('../src/db/schema');
-    const { eq } = await import('drizzle-orm');
-    const { db, close } = createDb(parseConfig(h.env).DATABASE_URL);
-    await db.update(emails).set({ status: 'queued' }).where(eq(emails.id, id));
-    await close();
-    h.queued.push({ emailId: id });
-    await h.drainQueue();
-    expect(h.smtpCalls).toHaveLength(1);
-    expect(await status()).toMatchObject({ status: 'sent', attempts: 1 });
   });
 });
 
