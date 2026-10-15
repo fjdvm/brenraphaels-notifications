@@ -26,12 +26,12 @@ npx wrangler deploy
 | `CLOUDFLARE_ACCOUNT_ID` | `npx wrangler whoami` prints it, or the dashboard's Workers & Pages overview (right-hand side). |
 | `DATABASE_URL` | The same Neon connection string as in `.env` (Neon console, the project's Connect dialog, direct connection). Used only to apply migrations. |
 
-Set them with the GitHub CLI so nothing is pasted into a page (each command prompts for the value; the last reads it from `.env`):
+Set them with the GitHub CLI so nothing is pasted into a page (`CLOUDFLARE_API_TOKEN` prompts for the value; `DATABASE_URL` is read from `.env`, quotes stripped):
 
 ```sh
 gh secret set CLOUDFLARE_API_TOKEN
 gh secret set CLOUDFLARE_ACCOUNT_ID
-gh secret set DATABASE_URL --body "$(grep '^DATABASE_URL=' .env | cut -d= -f2-)"
+gh secret set DATABASE_URL --body "$(grep '^DATABASE_URL=' .env | cut -d= -f2- | tr -d '"')"
 ```
 
 All `/emails/*` routes need `Authorization: Bearer <API_TOKEN>`.
