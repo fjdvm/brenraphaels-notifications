@@ -24,6 +24,7 @@ export function createHarness(
       process.env.TEST_DATABASE_URL ??
       'postgres://postgres:test@localhost:54329/postgres',
     APP_EMAIL_SENDER: 'apps@example.com',
+    API_TOKEN: 'test-token-0123456789',
     EMAIL_QUEUE: { send: async (job: EmailJob) => void queued.push(job) },
     ...overrides,
   } as unknown as Env;
@@ -37,9 +38,15 @@ export function createHarness(
     return brevoResponse();
   });
 
-  const request = (path: string, init?: RequestInit) =>
+  const request = (path: string, init: RequestInit = {}, authed = true) =>
     worker.fetch(
-      new Request(`http://worker${path}`, init) as any,
+      new Request(`http://worker${path}`, {
+        ...init,
+        headers: {
+          ...(authed ? { authorization: 'Bearer test-token-0123456789' } : {}),
+          ...(init.headers as object),
+        },
+      }) as any,
       env,
       {} as any,
     );
@@ -57,6 +64,7 @@ export function createHarness(
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       }),
+    request,
     getEmail: (id: string) => request(`/emails/${id}`),
     /** Runs the queue consumer over everything queued so far. */
     async drainQueue() {

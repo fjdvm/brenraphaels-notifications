@@ -5,10 +5,10 @@
   "compatibility_flags": ["nodejs_compat"],
   "queues": {
     "producers": [{ "binding": "EMAIL_QUEUE", "queue": "notifications-email" }],
-    "consumers": [{ "queue": "notifications-email", "max_retries": 0 }]
+    "consumers": [{ "queue": "notifications-email", "max_retries": 3 }]
   },
   "vars": {
     "APP_EMAIL_SENDER": "no-reply@example.com"
   }
-  // Secrets (set with `wrangler secret put`): BREVO_API_KEY, DATABASE_URL
+  // Secrets (set with `wrangler secret put`): BREVO_API_KEY, DATABASE_URL, API_TOKEN
 }

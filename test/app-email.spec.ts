@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseConfig } from '../src/config';
+import worker from '../src/index';
 import { createHarness } from './harness';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -112,7 +113,43 @@ describe('delivery', () => {
   });
 });
 
+describe('authentication', () => {
+  it('rejects requests without the API token', async () => {
+    const h = createHarness();
+    const noAuth = await h.request(
+      '/emails/app',
+      { method: 'POST', body: '{}' },
+      false,
+    );
+    expect(noAuth.status).toBe(401);
+    const wrong = await h.request(
+      '/emails/x',
+      { headers: { authorization: 'Bearer nope' } },
+      false,
+    );
+    expect(wrong.status).toBe(401);
+    expect(h.queued).toHaveLength(0);
+  });
+});
+
 describe('failure handling', () => {
+  it('retries the queue message when delivery itself throws', async () => {
+    const h = createHarness();
+    const { id } = (await (await h.postAppEmail(valid)).json()) as any;
+    const retry = vi.fn();
+    const ack = vi.fn();
+    const broken = {
+      ...h.env,
+      DATABASE_URL: 'postgres://nobody:x@localhost:1/none',
+    };
+    await worker.queue(
+      { messages: [{ body: { emailId: id }, ack, retry }] } as any,
+      broken,
+    );
+    expect(retry).toHaveBeenCalled();
+    expect(ack).not.toHaveBeenCalled();
+  });
+
   it('marks the Email failed and answers 500 when it cannot be queued', async () => {
     const h = createHarness({
       EMAIL_QUEUE: {
@@ -156,5 +193,6 @@ describe('configuration', () => {
     const h = createHarness({ BREVO_API_KEY: undefined });
     const res = await h.postAppEmail(valid);
     expect(res.status).toBe(500);
+    expect(((await res.json()) as any).error).toContain('BREVO_API_KEY');
   });
 });
