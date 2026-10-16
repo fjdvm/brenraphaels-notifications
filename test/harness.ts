@@ -7,6 +7,8 @@ import {
 } from './fake-durable-objects';
 import { smtp } from './smtp-stub';
 
+export const GATEWAY_SECRET = 'gateway-secret-0123456789';
+
 /** The Worker's public surface with SMTP stubbed and the queue captured. */
 export function createHarness(
   overrides: Partial<Record<string, unknown>> = {},
@@ -27,6 +29,7 @@ export function createHarness(
     MARKETING_EMAIL_SENDER: 'marketing@example.com',
     MARKETING_EMAIL_SENDER_NAME: 'Test Marketing',
     API_TOKEN: 'test-token-0123456789',
+    GATEWAY_SECRET: GATEWAY_SECRET,
     NOTIFICATION_HUB: createHubNamespace(),
     CONVERSATION_ROOM: createRoomNamespace(),
     EMAIL_QUEUE: { send: async (job: EmailJob) => void queued.push(job) },
@@ -88,7 +91,9 @@ export function createHarness(
     async connect(userId: string, app: string) {
       const res = await request(
         `/live?userId=${userId}&app=${app}`,
-        { headers: { upgrade: 'websocket' } },
+        {
+          headers: { upgrade: 'websocket', 'x-gateway-secret': GATEWAY_SECRET },
+        },
         false,
       );
       return { res, socket: (res as any).webSocket as FakeSocket };
@@ -97,7 +102,9 @@ export function createHarness(
     async join(ticketId: string, userId: string, role: string) {
       const res = await request(
         `/conversations/${ticketId}/live?userId=${userId}&role=${role}`,
-        { headers: { upgrade: 'websocket' } },
+        {
+          headers: { upgrade: 'websocket', 'x-gateway-secret': GATEWAY_SECRET },
+        },
         false,
       );
       return { res, socket: (res as any).webSocket as FakeSocket };

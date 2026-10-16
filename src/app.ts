@@ -2,6 +2,7 @@ import { Hono, type Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
 import { bearerAuth } from 'hono/bearer-auth';
+import { createMiddleware } from 'hono/factory';
 import { ConfigError, parseConfig, type Env } from './config';
 import { createDb } from './db/client';
 import { createEmail, getEmail, markEnqueueFailed } from './emails/service';
@@ -62,6 +63,19 @@ app.use('/emails/*', requireToken);
 app.use('/notifications', requireToken);
 app.use('/notifications/*', requireToken);
 app.use('/mcp', requireToken);
+
+// The live routes take no bearer token (browsers cannot set one on a
+// WebSocket). They accept only the gateway, which checks the Ticket is live
+// before forwarding, so connecting directly would bypass that check.
+const requireGateway = createMiddleware<{ Bindings: Env }>(async (c, next) => {
+  const secret = parseConfig(c.env).GATEWAY_SECRET;
+  const given = c.req.header('x-gateway-secret');
+  if (given === undefined || !tokenMatches(given, secret))
+    return c.json({ error: 'Unauthorized' }, 401);
+  await next();
+});
+app.use('/live', requireGateway);
+app.use('/conversations/:ticketId/live', requireGateway);
 
 interface EmailRequest {
   to: string;
@@ -296,16 +310,15 @@ app.post('/notifications/:id/read', async (c) => {
   }
 });
 
-// Browsers cannot set an Authorization header on a WebSocket, so this route
-// is outside the bearer token. The user id is declared, not verified, until
-// authentication exists.
+// Outside the bearer token (see requireGateway). The user id is declared by
+// the gateway, not verified here.
 app.get('/live', (c) => {
   const parsed = inboxQuery.safeParse(c.req.query());
   if (!parsed.success) return invalid(c, parsed.error);
   return connectToHub(c.env, parsed.data.app, parsed.data.userId, c.req.raw);
 });
 
-// Outside the bearer token for the same reason as /live. The Ticket id is
+// Gateway-only like /live. The Ticket id is
 // opaque here: this service knows nothing about Tickets (ADR-0003).
 app.get('/conversations/:ticketId/live', (c) => {
   const ticketId = c.req.param('ticketId');

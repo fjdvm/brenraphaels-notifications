@@ -3,7 +3,7 @@ import {
   liveEvent,
   notificationCreatedEvent,
 } from '../src/notifications/schemas';
-import { createHarness } from './harness';
+import { GATEWAY_SECRET, createHarness } from './harness';
 
 const base = {
   type: 'order.shipped',
@@ -33,8 +33,20 @@ describe('connecting', () => {
 
   it('rejects a connect without user and App, and a non-WebSocket request', async () => {
     const { h } = setup();
-    expect((await h.request('/live', {}, false)).status).toBe(400);
-    const plain = await h.request('/live?userId=u&app=Portal', {}, false);
+    expect(
+      (
+        await h.request(
+          '/live',
+          { headers: { 'x-gateway-secret': GATEWAY_SECRET } },
+          false,
+        )
+      ).status,
+    ).toBe(400);
+    const plain = await h.request(
+      '/live?userId=u&app=Portal',
+      { headers: { 'x-gateway-secret': GATEWAY_SECRET } },
+      false,
+    );
     expect(plain.status).toBe(426);
   });
 });

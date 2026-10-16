@@ -4,7 +4,7 @@ import {
   MAX_TEXT_LENGTH,
   conversationEvent,
 } from '../src/conversations/schemas';
-import { createHarness } from './harness';
+import { GATEWAY_SECRET, createHarness } from './harness';
 
 let n = 0;
 const ticket = () => `ticket-${Date.now()}-${n++}`;
@@ -35,7 +35,11 @@ describe('joining a room', () => {
     const h = createHarness();
     const t = ticket();
     const get = (q: string) =>
-      h.request(`/conversations/${t}/live?${q}`, {}, false);
+      h.request(
+        `/conversations/${t}/live?${q}`,
+        { headers: { 'x-gateway-secret': GATEWAY_SECRET } },
+        false,
+      );
     expect((await get('role=Staff')).status).toBe(400);
     expect((await get('userId=u&role=Admin')).status).toBe(400);
     expect((await get('userId=u&role=Staff')).status).toBe(426);

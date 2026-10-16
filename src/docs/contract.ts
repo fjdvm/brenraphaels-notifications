@@ -184,7 +184,7 @@ export const routes = {
     auth: 'open',
     query: inboxQuery,
     success: { status: 101, description: 'Switching to WebSocket.' },
-    errors: [400, 426],
+    errors: [400, 401, 426],
   },
   conversationLive: {
     method: 'get',
@@ -196,7 +196,7 @@ export const routes = {
       role: z.enum(['Customer', 'Staff']),
     }),
     success: { status: 101, description: 'Switching to WebSocket.' },
-    errors: [400, 404, 426],
+    errors: [400, 401, 404, 426],
   },
   openapi: {
     method: 'get',

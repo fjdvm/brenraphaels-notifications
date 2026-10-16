@@ -10,6 +10,7 @@ npx wrangler secret put SMTP_USER
 npx wrangler secret put SMTP_PASSWORD
 npx wrangler secret put DATABASE_URL
 npx wrangler secret put API_TOKEN
+npx wrangler secret put GATEWAY_SECRET
 npx wrangler queues create notifications-email
 npx wrangler deploy
 ```
