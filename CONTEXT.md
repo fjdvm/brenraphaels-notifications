@@ -17,7 +17,7 @@ A promotional Email that only CRMS can send, and only to Subscribers.
 _Avoid_: Campaign, newsletter, blast
 
 **Email template**:
-A layout owned by this service that an Email is built from, so all Apps send branded mail the same way. There are two: the generic App email and marketing. The marketing template is universal: Staff supply only images, a title and text.
+A layout owned by this service that an Email is built from, so all Apps send branded mail the same way. There are two: the generic App email and marketing. The marketing template is universal: Staff supply only images, a title and text; the template adds the brand header, the store location and, when the request carries an `unsubscribeUrl`, an Unsubscribe link.
 _Avoid_: Layout, theme
 
 **Subscriber**:
