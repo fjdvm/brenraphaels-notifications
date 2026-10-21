@@ -162,6 +162,7 @@ ws.onmessage = (e) => console.log(JSON.parse(e.data));
     ['<code>subscriberConsent</code>','yes','Must be <code>true</code>'],
     ['<code>title</code> <code>body</code>','yes','The subject and text'],
     ['<code>images</code>','no','A list of https image URLs'],
+    ['<code>imageLayout</code>','no','How the images are arranged: <code>stacked</code> (the default; every image full width) or a collage that fits the number of images (<code>single</code>, <code>two-columns</code>, <code>two-rows</code>, <code>three-feature-left</code>, <code>three-feature-top</code>, <code>three-row</code>, <code>four-grid</code>, <code>four-feature-left</code>, <code>four-feature-top</code>). A layout that does not fit falls back to <code>stacked</code>'],
     ['<code>unsubscribeUrl</code>','no','An https link for the footer Unsubscribe; the footer has no Unsubscribe link without it']]}],
   responses:[['202','<code>{"id":"…","status":"queued"}</code>'],['400','Invalid body, another App, or consent not asserted']],
   example:`curl -X POST "$BASE_URL/emails/marketing" ${H} ${JSONH} \\
@@ -171,7 +172,7 @@ ws.onmessage = (e) => console.log(JSON.parse(e.data));
 { id:'post-emails-marketing-list', title:'Send a Marketing email to a list', method:'POST', path:'/emails/marketing/list', role:'token', intro:'The same Email to many Subscribers. One Email is created per distinct address (case ignored), each queued on its own, so one failure marks only that Email.',
   tables:[{ title:'Body', head:['Field','Required','Notes'], rows:[
     ['<code>recipients</code>','yes','1 to 100 addresses'],
-    ['<code>app</code> <code>subscriberConsent</code> <code>title</code> <code>body</code> <code>images</code> <code>unsubscribeUrl</code>','','As for a single Marketing email']]}],
+    ['<code>app</code> <code>subscriberConsent</code> <code>title</code> <code>body</code> <code>images</code> <code>imageLayout</code> <code>unsubscribeUrl</code>','','As for a single Marketing email']]}],
   responses:[['202','<code>queued</code> (how many were queued) and <code>emails</code> (<code>{id, recipient}</code> each)'],['400','Invalid body, or too many recipients']],
   example:`curl -X POST "$BASE_URL/emails/marketing/list" ${H} ${JSONH} \\
   -d '{"recipients":["ana@example.com","ben@example.com"],"app":"CRMS","subscriberConsent":true,
@@ -215,8 +216,8 @@ ws.onopen = () => ws.send(JSON.stringify({ type: "message", id: "m1", text: "Hel
     ['<code>mark_notification_read</code>','<code>id</code> <code>userId</code> <code>app</code>'],
     ['<code>mark_all_notifications_read</code>','<code>userId</code> <code>app</code>'],
     ['<code>send_app_email</code>','<code>to</code> <code>app</code> <code>title</code> <code>body</code> <code>button?</code> (<code>{label, link}</code>)'],
-    ['<code>send_marketing_email</code>','<code>to</code> <code>app</code> (<code>"CRMS"</code>) <code>subscriberConsent</code> (<code>true</code>) <code>title</code> <code>body</code> <code>images?</code> (https URLs) <code>unsubscribeUrl?</code> (https URL)'],
-    ['<code>send_marketing_email_list</code>','<code>recipients</code> (a list) <code>app</code> (<code>"CRMS"</code>) <code>subscriberConsent</code> (<code>true</code>) <code>title</code> <code>body</code> <code>images?</code> (https URLs) <code>unsubscribeUrl?</code> (https URL)'],
+    ['<code>send_marketing_email</code>','<code>to</code> <code>app</code> (<code>"CRMS"</code>) <code>subscriberConsent</code> (<code>true</code>) <code>title</code> <code>body</code> <code>images?</code> (https URLs) <code>imageLayout?</code> <code>unsubscribeUrl?</code> (https URL)'],
+    ['<code>send_marketing_email_list</code>','<code>recipients</code> (a list) <code>app</code> (<code>"CRMS"</code>) <code>subscriberConsent</code> (<code>true</code>) <code>title</code> <code>body</code> <code>images?</code> (https URLs) <code>imageLayout?</code> <code>unsubscribeUrl?</code> (https URL)'],
     ['<code>get_email</code>','<code>id</code>']]}],
   responses:[['200','A JSON-RPC reply. A failed tool call is a result with <code>isError: true</code> and the API’s message'],['400','Not a valid JSON-RPC request'],['401','Missing or wrong token']],
   example:`# Claude Code

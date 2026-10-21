@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineTemplate } from './define';
 import { esc } from './escape';
+import { IMAGE_LAYOUTS, renderImages } from './image-layouts';
 
 const PRIMARY = '#452175';
 const INK = '#2b1b45';
@@ -33,15 +34,11 @@ export const marketing = defineTemplate({
     title: z.string().min(1),
     body: z.string().min(1),
     images: z.array(z.url({ protocol: /^https$/ })).default([]),
+    imageLayout: z.enum(IMAGE_LAYOUTS).optional(),
     unsubscribeUrl: z.url({ protocol: /^https$/ }).optional(),
   }),
-  render({ title, body, images, unsubscribeUrl }) {
-    const imgs = images
-      .map(
-        (src) =>
-          `<tr><td style="padding:0 0 16px"><img src="${esc(src)}" alt="" width="552" style="display:block;width:100%;max-width:100%;height:auto;border:0;border-radius:8px"></td></tr>`,
-      )
-      .join('');
+  render({ title, body, images, imageLayout, unsubscribeUrl }) {
+    const imgs = renderImages(images, imageLayout);
     const unsubscribe = unsubscribeUrl
       ? `<p style="margin:12px 0 0;font-family:${SANS};font-size:12px;line-height:1.6;color:${MUTED}">You are receiving this because you opted in to marketing emails. <a href="${esc(unsubscribeUrl)}" style="color:${PRIMARY};text-decoration:underline">Unsubscribe</a></p>`
       : '';

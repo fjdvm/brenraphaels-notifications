@@ -40,8 +40,8 @@ All `/emails/*` routes need `Authorization: Bearer <API_TOKEN>`.
 ## Endpoints
 
 - `POST /emails/app` `{ to, app, title, body, button?: { label, link } }` → `202 { id, status: "queued" }`
-- `POST /emails/marketing` `{ to, app: "CRMS", subscriberConsent: true, title, body, images?: [https urls], unsubscribeUrl?: https url }` → `202 { id, status: "queued" }`
-- `POST /emails/marketing/list` `{ recipients: [emails], app: "CRMS", subscriberConsent: true, title, body, images?, unsubscribeUrl? }` → `202 { queued, emails: [{ id, recipient }] }`. One Email per distinct address (case-insensitive), queued independently. More than `MARKETING_MAX_RECIPIENTS` (optional var, default 100) → `400`.
+- `POST /emails/marketing` `{ to, app: "CRMS", subscriberConsent: true, title, body, images?: [https urls], imageLayout?: one of stacked | single | two-columns | two-rows | three-feature-left | three-feature-top | three-row | four-grid | four-feature-left | four-feature-top, unsubscribeUrl?: https url }` → `202 { id, status: "queued" }`
+- `POST /emails/marketing/list` `{ recipients: [emails], app: "CRMS", subscriberConsent: true, title, body, images?, imageLayout?, unsubscribeUrl? }` → `202 { queued, emails: [{ id, recipient }] }`. One Email per distinct address (case-insensitive), queued independently. More than `MARKETING_MAX_RECIPIENTS` (optional var, default 100) → `400`.
 - `GET /emails/:id` → the Email record (status, attempts, Message-ID, failure reason)
 
 ## Docs and agents
