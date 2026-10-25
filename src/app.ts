@@ -13,6 +13,8 @@ import {
   markAllRead,
   markRead,
 } from './notifications/service';
+import { connectToOrders, publishToOrders } from './orders/relay';
+import { orderConnectQuery, publishOrderEvent } from './orders/schemas';
 import { connectToRoom } from './conversations/connect';
 import { connectToHub, pushToUser } from './live/push';
 import guide from './docs/guide.html';
@@ -75,6 +77,8 @@ const requireGateway = createMiddleware<{ Bindings: Env }>(async (c, next) => {
   await next();
 });
 app.use('/live', requireGateway);
+app.use('/orders/live', requireGateway);
+app.use('/orders/events', requireToken);
 app.use('/conversations/:ticketId/live', requireGateway);
 
 interface EmailRequest {
@@ -326,6 +330,21 @@ app.get('/conversations/:ticketId/live', (c) => {
   const parsed = connectQuery.safeParse(c.req.query());
   if (!parsed.success) return invalid(c, parsed.error);
   return connectToRoom(c.env, ticketId, parsed.data, c.req.raw);
+});
+
+// The gateway vouches for this Customer. No history is kept for disconnected browsers.
+app.get('/orders/live', (c) => {
+  const parsed = orderConnectQuery.safeParse(c.req.query());
+  if (!parsed.success) return invalid(c, parsed.error);
+  return connectToOrders(c.env, parsed.data.userId, c.req.raw);
+});
+
+app.post('/orders/events', async (c) => {
+  const parsed = publishOrderEvent.safeParse(
+    await c.req.json().catch(() => undefined),
+  );
+  if (!parsed.success) return invalid(c, parsed.error);
+  return publishToOrders(c.env, parsed.data.customerId, parsed.data.event);
 });
 
 // The guide and the OpenAPI document need no token: they describe the API.

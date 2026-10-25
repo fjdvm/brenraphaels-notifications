@@ -4,6 +4,7 @@ import { createDb } from './db/client';
 import { retryDelaySeconds } from './emails/retry';
 import { deliverEmail } from './emails/service';
 
+export { OrderHub } from './orders/hub';
 export { NotificationHub } from './live/hub';
 export { ConversationRoom } from './conversations/room';
 

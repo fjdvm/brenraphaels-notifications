@@ -9,11 +9,13 @@
   },
   "durable_objects": {
     "bindings": [{ "name": "NOTIFICATION_HUB", "class_name": "NotificationHub" },
-      { "name": "CONVERSATION_ROOM", "class_name": "ConversationRoom" }]
+      { "name": "CONVERSATION_ROOM", "class_name": "ConversationRoom" },
+      { "name": "ORDER_HUB", "class_name": "OrderHub" }]
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["NotificationHub"] },
-    { "tag": "v2", "new_sqlite_classes": ["ConversationRoom"] }
+    { "tag": "v2", "new_sqlite_classes": ["ConversationRoom"] },
+    { "tag": "v3", "new_sqlite_classes": ["OrderHub"] }
   ],
   "vars": {
     "SMTP_HOST": "smtp-relay.brevo.com",

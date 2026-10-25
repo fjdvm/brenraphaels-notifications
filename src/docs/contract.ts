@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { ZodType } from 'zod';
+import { orderConnectQuery, publishOrderEvent } from '../orders/schemas';
 import {
   appEmailRequest,
   marketingEmailRequest,
@@ -185,6 +186,34 @@ export const routes = {
     query: inboxQuery,
     success: { status: 101, description: 'Switching to WebSocket.' },
     errors: [400, 401, 426],
+  },
+  orderLive: {
+    method: 'get',
+    path: '/orders/live',
+    summary:
+      "Open a gateway-only WebSocket for one Customer's Order and Return events",
+    auth: 'open',
+    query: orderConnectQuery,
+    success: {
+      status: 101,
+      description: 'Switching to WebSocket. Requires X-Gateway-Secret.',
+    },
+    errors: [400, 401, 426],
+  },
+  publishOrderEvent: {
+    method: 'post',
+    path: '/orders/events',
+    summary:
+      'Relay an Order or Return event to one Customer without storing it',
+    auth: 'token',
+    body: publishOrderEvent,
+    success: {
+      status: 200,
+      description:
+        'Number of connected sockets reached; offline events are dropped.',
+      schema: z.object({ connected: z.number().int().nonnegative() }),
+    },
+    errors: [],
   },
   conversationLive: {
     method: 'get',
