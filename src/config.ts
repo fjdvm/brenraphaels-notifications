@@ -46,6 +46,7 @@ export interface Env extends Record<string, unknown> {
   EMAIL_QUEUE: Queue<EmailJob>;
   NOTIFICATION_HUB: DurableObjectNamespace;
   CONVERSATION_ROOM: DurableObjectNamespace;
+  ORDER_HUB: DurableObjectNamespace;
 }
 
 export interface EmailJob {

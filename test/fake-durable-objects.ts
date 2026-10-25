@@ -1,3 +1,4 @@
+import { OrderHub } from '../src/orders/hub';
 import { ConversationRoom } from '../src/conversations/room';
 import { NotificationHub } from '../src/live/hub';
 
@@ -130,3 +131,6 @@ export function createHubNamespace() {
     get: (id: string) => stubFor(id),
   };
 }
+
+export const createOrderHubNamespace = () =>
+  createNamespace((ctx, upgrade) => new OrderHub(ctx, {}, upgrade));

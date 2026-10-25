@@ -2,6 +2,7 @@ import type { EmailJob, Env } from '../src/config';
 import worker from '../src/index';
 import {
   createHubNamespace,
+  createOrderHubNamespace,
   createRoomNamespace,
   type FakeSocket,
 } from './fake-durable-objects';
@@ -32,6 +33,7 @@ export function createHarness(
     GATEWAY_SECRET: GATEWAY_SECRET,
     NOTIFICATION_HUB: createHubNamespace(),
     CONVERSATION_ROOM: createRoomNamespace(),
+    ORDER_HUB: createOrderHubNamespace(),
     EMAIL_QUEUE: { send: async (job: EmailJob) => void queued.push(job) },
     ...overrides,
   } as unknown as Env;

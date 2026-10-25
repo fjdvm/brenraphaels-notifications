@@ -135,6 +135,15 @@ const SECTIONS = [
   example:`curl -X POST "$BASE_URL/notifications/${ID}/read" ${H} ${JSONH} \\
   -d '{${inbox}}'
 # 200 {"id":"${ID}","read":true}` },
+{ id:'get-orders-live', title:'Live Orders', method:'GET', path:'/orders/live', role:'open', intro:'Gateway-only: requires X-Gateway-Secret and userId naming one Customer. The browser uses the gateway, with an Orders Live ticket issued only to the storefront Caller. Receives order.updated and return.updated invalidation signals, separate from the notification bell. Nothing is stored or replayed; refetch Orders on reconnect. Non-WebSocket requests answer 426.',
+  example:`// First ask your backend for a gateway Orders Live ticket.
+const ws = new WebSocket("wss://YOUR_GATEWAY/notifications/orders/live?ticket=PASS");
+ws.onmessage = () => refetchOrders();
+ws.onopen = () => refetchOrders();`
+},
+{ id:'post-orders-events', title:'Publish an Order event', method:'POST', path:'/orders/events', role:'token', intro:'The storefront backend publishes through POST /notifications/orders/events at the gateway, after committing a change. The gateway allows only the ECOM Caller. The service requires its bearer token. Events name an orderId, and return.updated also requires returnId. Returns connected, the number of sockets reached. A disconnected Customer receives nothing later. Log a publish failure without failing the committed change.',
+  example:`curl -X POST "$BASE_URL/orders/events" -H "Authorization: Bearer $API_TOKEN" -H "Content-Type: application/json" -d '{"customerId":"customer-1","event":{"type":"order.updated","orderId":"order-1"}}'`
+},
 { id:'get-live', title:'Live Notifications', method:'GET', path:'/live', role:'open', intro:'A WebSocket for one user in one App, one connection per tab. This route takes no bearer token, because browsers cannot set one on a WebSocket. It accepts only the gateway: the request must carry the <code>X-Gateway-Secret</code> header, otherwise it answers 401. Pass <code>userId</code> and <code>app</code> as the query. A plain request without the upgrade answers 426. Clients only listen: anything they send is ignored, except <code>ping</code>, which is answered with <code>pong</code> for keep-alive.',
   tables:[{ title:'Events from the server', narrow:true, head:['type','Meaning'], rows:[
     ['<code>notification.created</code>','A new Notification, in <code>notification</code>'],
