@@ -305,7 +305,7 @@ describe('direct Notification lookup', () => {
     const [copy] = ((await response.json()) as any).notifications;
     const lookup = (extra: Record<string, string>) =>
       h.request(
-        `/notifications/lookup?${new URLSearchParams({ userId, app: 'Portal', ...extra })}`,
+        `/notifications/lookup?${new URLSearchParams({ userId, app: 'Portal', ...extra }).toString()}`,
       );
     const byKey = await lookup({
       sendingApp: 'CREOMS',
