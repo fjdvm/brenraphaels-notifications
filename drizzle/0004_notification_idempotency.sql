@@ -1,0 +1,2 @@
+ALTER TABLE "notifications" ADD COLUMN "idempotency_key" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "notifications_event_recipient_idx" ON "notifications" USING btree ("sending_app","target_app","user_id","idempotency_key");
