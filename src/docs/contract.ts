@@ -8,6 +8,7 @@ import {
 } from '../emails/schemas';
 import {
   inboxQuery,
+  lookupQuery,
   listQuery,
   notificationResponse,
   sendNotificationRequest,
@@ -68,6 +69,19 @@ export const routes = {
         notifications: z.array(notificationResponse),
         nextCursor: z.string().nullable(),
       }),
+    },
+    errors: [],
+  },
+  lookupNotification: {
+    method: 'get',
+    path: '/notifications/lookup',
+    summary: 'Find one Notification by id or retry key without paging',
+    auth: 'token',
+    query: lookupQuery,
+    success: {
+      status: 200,
+      description: 'The matching Notification, or null.',
+      schema: z.object({ notification: notificationResponse.nullable() }),
     },
     errors: [],
   },

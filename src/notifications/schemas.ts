@@ -61,3 +61,14 @@ export const listQuery = inboxQuery.extend({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   cursor: z.string().min(1).optional(),
 });
+
+/** Exact lookup for linked inbox copies, scoped to the same recipient and target App. */
+export const lookupQuery = inboxQuery
+  .extend({
+    id: z.uuid().optional(),
+    idempotencyKey: z.string().min(1).max(255).optional(),
+    sendingApp: z.string().min(1).optional(),
+  })
+  .refine((q) => Boolean(q.id) !== Boolean(q.idempotencyKey && q.sendingApp), {
+    message: 'Supply an id or an idempotencyKey with sendingApp',
+  });
