@@ -121,6 +121,7 @@ const SECTIONS = [
   example:`curl -G "$BASE_URL/notifications" ${H} \\
   --data-urlencode "userId=user-1" --data-urlencode "app=Portal" --data-urlencode "unread=true"
 # 200 {"notifications":[ ${note()} ],"nextCursor":null}` },
+{ id:'get-notifications-lookup', title:'Find one Notification', method:'GET', path:'/notifications/lookup', role:'token', intro:'Finds a copy directly without paging. Requires userId and app, plus either id or both sendingApp and idempotencyKey. Returns notification or null; never returns another inbox.', responses:[['200','The Notification or null'],['400','Invalid lookup']] },
 { id:'get-notifications-unread-count', title:'Count unread Notifications', method:'GET', path:'/notifications/unread-count', role:'token', intro:'For a badge on a bell icon.',
   responses:[['200','<code>{"unread": 3}</code>'],['400','Missing user or App']],
   example:`curl -G "$BASE_URL/notifications/unread-count" ${H} \\

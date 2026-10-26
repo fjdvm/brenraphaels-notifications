@@ -144,3 +144,33 @@ export async function markAllRead(db: Db, userId: string, app: string) {
     .returning({ id: notifications.id });
   return rows.map((r) => r.id);
 }
+
+/** Indexed lookup; it never enumerates a User's inbox to recover an old copy. */
+export async function findNotification(
+  db: Db,
+  q: {
+    userId: string;
+    app: string;
+    id?: string;
+    idempotencyKey?: string;
+    sendingApp?: string;
+  },
+) {
+  const [row] = await db
+    .select()
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.userId, q.userId),
+        eq(notifications.targetApp, q.app),
+        q.id
+          ? eq(notifications.id, q.id)
+          : and(
+              eq(notifications.idempotencyKey, q.idempotencyKey!),
+              eq(notifications.sendingApp, q.sendingApp!),
+            ),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}

@@ -292,3 +292,50 @@ describe('read state', () => {
     expect(await count(b)).toBe(1);
   });
 });
+
+describe('direct Notification lookup', () => {
+  it('finds an old copy by retry key or id without paging, scoped to its recipient, target and sender', async () => {
+    const { h, send } = setup();
+    const userId = fresh();
+    const response = await send({
+      userIds: [userId],
+      idempotencyKey: 'creoms.order.7',
+      sendingApp: 'CREOMS',
+    });
+    const [copy] = ((await response.json()) as any).notifications;
+    const lookup = (extra: Record<string, string>) =>
+      h.request(
+        `/notifications/lookup?${new URLSearchParams({ userId, app: 'Portal', ...extra }).toString()}`,
+      );
+    const byKey = await lookup({
+      sendingApp: 'CREOMS',
+      idempotencyKey: 'creoms.order.7',
+    });
+    expect(byKey.status).toBe(200);
+    expect(((await byKey.json()) as any).notification.id).toBe(copy.id);
+    const byId = await lookup({ id: copy.id });
+    expect(((await byId.json()) as any).notification.id).toBe(copy.id);
+    const otherInboxes: Record<string, string>[] = [
+      { id: copy.id, userId: fresh() },
+      { id: copy.id, app: 'other' },
+      { sendingApp: 'other', idempotencyKey: 'creoms.order.7' },
+    ];
+    for (const extra of otherInboxes) {
+      expect(
+        ((await (await lookup(extra)).json()) as any).notification,
+      ).toBeNull();
+    }
+    expect((await lookup({ idempotencyKey: 'creoms.order.7' })).status).toBe(
+      400,
+    );
+    expect(
+      (
+        await h.request(
+          '/notifications/lookup?userId=x&app=Portal&id=' + copy.id,
+          {},
+          false,
+        )
+      ).status,
+    ).toBe(401);
+  });
+});

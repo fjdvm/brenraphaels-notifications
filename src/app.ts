@@ -8,6 +8,7 @@ import { createDb } from './db/client';
 import { createEmail, getEmail, markEnqueueFailed } from './emails/service';
 import {
   countUnread,
+  findNotification,
   createNotifications,
   listNotifications,
   markAllRead,
@@ -30,6 +31,7 @@ import {
 } from './emails/schemas';
 import {
   inboxQuery,
+  lookupQuery,
   listQuery,
   notificationResponse,
   sendNotificationRequest,
@@ -251,6 +253,20 @@ app.get('/notifications', async (c) => {
     return c.json({
       notifications: page.items.map((r) => notificationResponse.parse(r)),
       nextCursor: page.nextCursor,
+    });
+  } finally {
+    await close();
+  }
+});
+
+app.get('/notifications/lookup', async (c) => {
+  const parsed = lookupQuery.safeParse(c.req.query());
+  if (!parsed.success) return invalid(c, parsed.error);
+  const { db, close } = createDb(parseConfig(c.env).DATABASE_URL);
+  try {
+    const row = await findNotification(db, parsed.data);
+    return c.json({
+      notification: row ? notificationResponse.parse(row) : null,
     });
   } finally {
     await close();
