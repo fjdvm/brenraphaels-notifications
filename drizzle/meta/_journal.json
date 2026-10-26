@@ -29,6 +29,13 @@
       "when": 1792093432732,
       "tag": "0003_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792994976446,
+      "tag": "0004_notification_idempotency",
+      "breakpoints": true
     }
   ]
 }

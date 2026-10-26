@@ -34,6 +34,14 @@ export type LiveEvent = z.infer<typeof liveEvent>;
 
 /** Request shapes, shared by the routes, the OpenAPI document and the MCP tools. */
 export const sendNotificationRequest = z.object({
+  idempotencyKey: z
+    .string()
+    .min(1)
+    .max(255)
+    .optional()
+    .describe(
+      'Stable event key. Retries store and push once per sending App, target App and recipient.',
+    ),
   type: z.string().min(1),
   title: z.string().min(1),
   body: z.string().min(1),

@@ -103,7 +103,8 @@ const SECTIONS = [
     ['<code>link</code>','no','A full URL the user can open'],
     ['<code>sendingApp</code>','yes','The App sending it'],
     ['<code>targetApp</code>','yes','The App whose users receive it'],
-    ['<code>userIds</code>','yes','At least one user id']]}],
+    ['<code>userIds</code>','yes','At least one user id'],
+    ['<code>idempotencyKey</code>','no','Stable event key (1–255 characters). Retries store and push once per sending App, target App and recipient. A duplicate succeeds with stored: 0; read state is preserved.']]}],
   responses:[['201','<code>notifications</code> (one per user), <code>stored</code> (how many) and <code>connected</code> (how many recipients had at least one open connection)'],['400','Invalid body'],['401','Missing or wrong token']],
   example:`curl -X POST "$BASE_URL/notifications" ${H} ${JSONH} \\
   -d '{"type":"order.shipped","title":"Order shipped","body":"Your order is on its way.",
@@ -219,7 +220,7 @@ ws.onopen = () => ws.send(JSON.stringify({ type: "message", id: "m1", text: "Hel
     ['<code>send_marketing_email_list</code>','<code>POST /emails/marketing/list</code>','CRMS only'],
     ['<code>get_email</code>','<code>GET /emails/:id</code>','']]},
   { title:'Tool arguments', narrow:true, head:['Tool','Arguments (optional ones marked ?)'], rows:[
-    ['<code>send_notification</code>','<code>type</code> <code>title</code> <code>body</code> <code>sendingApp</code> <code>targetApp</code> <code>userIds</code> (a list) <code>link?</code>'],
+    ['<code>send_notification</code>','<code>type</code> <code>title</code> <code>body</code> <code>sendingApp</code> <code>targetApp</code> <code>userIds</code> (a list) <code>link?</code> <code>idempotencyKey?</code>'],
     ['<code>list_notifications</code>','<code>userId</code> <code>app</code> <code>unread?</code> (<code>"true"</code> or <code>"false"</code>) <code>limit?</code> (1 to 100) <code>cursor?</code>'],
     ['<code>get_unread_count</code>','<code>userId</code> <code>app</code>'],
     ['<code>mark_notification_read</code>','<code>id</code> <code>userId</code> <code>app</code>'],

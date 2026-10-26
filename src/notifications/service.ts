@@ -3,6 +3,7 @@ import type { Db } from '../db/client';
 import { notifications } from '../db/schema';
 
 export interface NewNotification {
+  idempotencyKey?: string;
   type: string;
   title: string;
   body: string;
@@ -26,6 +27,7 @@ export async function createNotifications(db: Db, input: NewNotification) {
         createdAt,
       })),
     )
+    .onConflictDoNothing()
     .returning();
 }
 

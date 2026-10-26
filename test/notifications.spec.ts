@@ -37,6 +37,29 @@ function setup() {
 }
 
 describe('sending Notifications', () => {
+  it('does not store or push a retry twice, even after the original was read', async () => {
+    const { h, send, list, count } = setup();
+    const userId = fresh();
+    const { socket } = await h.connect(userId, 'Portal');
+    const payload = {
+      userIds: [userId],
+      idempotencyKey: 'order.delivered:245',
+    };
+    const first = await send(payload);
+    const { notifications } = (await first.json()) as any;
+    await h.postJson(`/notifications/${notifications[0].id}/read`, {
+      userId,
+      app: 'Portal',
+    });
+    const before = socket.received.length;
+    const retry = await send(payload);
+    expect(retry.status).toBe(201);
+    expect(((await retry.json()) as any).stored).toBe(0);
+    expect((await list(userId)).notifications).toHaveLength(1);
+    expect(await count(userId)).toBe(0);
+    expect(socket.received).toHaveLength(before);
+  });
+
   it('stores one Notification per recipient, unread, with a creation time', async () => {
     const { send, list } = setup();
     const [a, b] = [fresh(), fresh()];
@@ -58,6 +81,36 @@ describe('sending Notifications', () => {
     });
     expect(notifications[0].createdAt).toBeTruthy();
     expect((await list(b)).notifications).toHaveLength(1);
+  });
+
+  it('deduplicates concurrent sends per App and recipient without suppressing other events', async () => {
+    const { send, list } = setup();
+    const [a, b] = [fresh(), fresh()];
+    const payload = { userIds: [a], idempotencyKey: 'order.delivered:245' };
+    const responses = await Promise.all([
+      send(payload),
+      send(payload),
+      send(payload),
+    ]);
+    expect(responses.every((response) => response.status === 201)).toBe(true);
+    expect((await list(a)).notifications).toHaveLength(1);
+    await send({ ...payload, userIds: [a, b] });
+    expect((await list(a)).notifications).toHaveLength(1);
+    expect((await list(b)).notifications).toHaveLength(1);
+    await send({ ...payload, targetApp: 'ecommerce' });
+    await send({ ...payload, sendingApp: 'ecommerce' });
+    await send({ ...payload, idempotencyKey: 'order.delivered:246' });
+    expect((await list(a, 'ecommerce')).notifications).toHaveLength(1);
+    expect((await list(a)).notifications).toHaveLength(3);
+  });
+
+  it('rejects empty or oversized stable keys', async () => {
+    const { send } = setup();
+    for (const idempotencyKey of ['', 'x'.repeat(256)]) {
+      expect((await send({ userIds: [fresh()], idempotencyKey })).status).toBe(
+        400,
+      );
+    }
   });
 
   it('rejects missing or empty user ids and other invalid input', async () => {

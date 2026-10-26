@@ -6,6 +6,7 @@ import {
   text,
   timestamp,
   uuid,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 export const emails = pgTable('emails', {
@@ -32,6 +33,7 @@ export const emails = pgTable('emails', {
 export const notifications = pgTable(
   'notifications',
   {
+    idempotencyKey: text('idempotency_key'),
     id: uuid('id').primaryKey().defaultRandom(),
     type: text('type').notNull(),
     title: text('title').notNull(),
@@ -46,6 +48,12 @@ export const notifications = pgTable(
     readAt: timestamp('read_at', { withTimezone: true }),
   },
   (t) => [
+    uniqueIndex('notifications_event_recipient_idx').on(
+      t.sendingApp,
+      t.targetApp,
+      t.userId,
+      t.idempotencyKey,
+    ),
     index('notifications_inbox_idx').on(
       t.targetApp,
       t.userId,
