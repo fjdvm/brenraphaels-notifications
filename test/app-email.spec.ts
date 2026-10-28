@@ -196,3 +196,82 @@ describe('configuration', () => {
     expect(((await res.json()) as any).error).toContain('SMTP_PASSWORD');
   });
 });
+
+describe('App email request idempotency', () => {
+  it('reuses one Email under concurrent retries, then sends once', async () => {
+    const h = createHarness();
+    const key = crypto.randomUUID();
+    const request = () =>
+      h.request('/emails/app', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'idempotency-key': key },
+        body: JSON.stringify(valid),
+      });
+    const responses = await Promise.all([request(), request(), request()]);
+    const records = await Promise.all(
+      responses.map((r) => r.json() as Promise<{ id: string }>),
+    );
+    expect(new Set(records.map((r) => r.id)).size).toBe(1);
+    await h.drainQueue();
+    expect(h.smtpCalls).toHaveLength(1);
+    expect((await request()).status).toBe(202);
+    await h.drainQueue();
+    expect(h.smtpCalls).toHaveLength(1);
+  });
+});
+
+it('retries a failed queue submission with the original keyed Email', async () => {
+  let unavailable = true;
+  const jobs: { emailId: string }[] = [];
+  const h = createHarness({
+    EMAIL_QUEUE: {
+      send: async (job: { emailId: string }) => {
+        if (unavailable) throw new Error('queue down');
+        jobs.push(job);
+      },
+    },
+  });
+  const key = crypto.randomUUID();
+  const request = () =>
+    h.request('/emails/app', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'idempotency-key': key },
+      body: JSON.stringify(valid),
+    });
+  expect((await request()).status).toBe(500);
+  unavailable = false;
+  const response = await request();
+  expect(response.status).toBe(202);
+  const result = (await response.json()) as { id: string };
+  expect(jobs).toEqual([{ emailId: result.id }]);
+  expect(
+    ((await (await h.getEmail(result.id)).json()) as { status: string }).status,
+  ).toBe('queued');
+});
+
+it('scopes email keys to App and recipient and preserves the original request content', async () => {
+  const h = createHarness();
+  const key = crypto.randomUUID();
+  const request = (body: unknown) =>
+    h.request('/emails/app', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'idempotency-key': key },
+      body: JSON.stringify(body),
+    });
+  const first = (await (await request(valid)).json()) as { id: string };
+  const retry = (await (
+    await request({ ...valid, title: 'Changed' })
+  ).json()) as { id: string };
+  expect(retry.id).toBe(first.id);
+  const other = (await (
+    await request({ ...valid, app: 'careers' })
+  ).json()) as { id: string };
+  const recipient = (await (
+    await request({ ...valid, to: 'other@example.test' })
+  ).json()) as { id: string };
+  expect(new Set([first.id, other.id, recipient.id]).size).toBe(3);
+  await h.drainQueue();
+  expect(
+    h.smtpCalls.every((call) => call.email.subject === 'Welcome aboard'),
+  ).toBe(true);
+});

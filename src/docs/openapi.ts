@@ -56,6 +56,20 @@ function operation(name: string, spec: RouteSpec): Json {
       schema,
     })),
   ];
+  if (spec.headers) {
+    const headers = jsonSchema(spec.headers, 'input') as {
+      properties?: Record<string, Json>;
+      required?: string[];
+    };
+    for (const [name, schema] of Object.entries(headers.properties ?? {})) {
+      parameters.push({
+        name,
+        in: 'header',
+        required: headers.required?.includes(name) ?? false,
+        schema,
+      });
+    }
+  }
   const responses: Record<string, Json> = {
     [spec.success.status]: {
       description: spec.success.description,

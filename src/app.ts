@@ -102,6 +102,17 @@ async function queueEmail(
   schema: z.ZodType<EmailRequest>,
   template: string,
 ) {
+  const idempotencyKey =
+    template === appEmail.name ? c.req.header('idempotency-key') : undefined;
+  if (
+    idempotencyKey !== undefined &&
+    (!idempotencyKey.trim() || idempotencyKey.length > 255)
+  ) {
+    return c.json(
+      { error: 'Idempotency-Key must contain 1–255 characters' },
+      400,
+    );
+  }
   const config = parseConfig(c.env);
   const json = await c.req.json().catch(() => undefined);
   const parsed = schema.safeParse(json);
@@ -110,6 +121,7 @@ async function queueEmail(
   const { db, close } = createDb(config.DATABASE_URL);
   try {
     const email = await createEmail(db, config, {
+      idempotencyKey,
       template,
       recipient: to,
       sendingApp,
@@ -117,12 +129,13 @@ async function queueEmail(
       subscriberConsent,
     });
     try {
-      await c.env.EMAIL_QUEUE.send({ emailId: email.id });
+      if (email.status === 'queued')
+        await c.env.EMAIL_QUEUE.send({ emailId: email.id });
     } catch (err) {
-      await markEnqueueFailed(db, email.id, err);
+      if (!idempotencyKey) await markEnqueueFailed(db, email.id, err);
       throw err;
     }
-    return c.json({ id: email.id, status: 'queued' }, 202);
+    return c.json({ id: email.id, status: email.status }, 202);
   } finally {
     await close();
   }

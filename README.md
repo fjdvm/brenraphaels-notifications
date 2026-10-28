@@ -39,6 +39,11 @@ All `/emails/*` routes need `Authorization: Bearer <API_TOKEN>`.
 
 ## Endpoints
 
+- `POST /emails/app` accepts optional `Idempotency-Key` (1–255 nonblank characters).
+  The App, recipient and key identify one Email; retries return its original id
+  and current status, preserving content and Message-ID. Concurrent deliveries
+  of a keyed Email serialize. Failed queue submissions can be retried using the
+  same key. Omit the header to create a new Email on every request.
 - `POST /emails/app` `{ to, app, title, body, button?: { label, link } }` → `202 { id, status: "queued" }`
 - `POST /emails/marketing` `{ to, app: "CRMS", subscriberConsent: true, title, body, images?: [https urls], imageLayout?: one of stacked | single | two-columns | two-rows | three-feature-left | three-feature-top | three-row | four-grid | four-feature-left | four-feature-top, unsubscribeUrl?: https url }` → `202 { id, status: "queued" }`
 - `POST /emails/marketing/list` `{ recipients: [emails], app: "CRMS", subscriberConsent: true, title, body, images?, imageLayout?, unsubscribeUrl? }` → `202 { queued, emails: [{ id, recipient }] }`. One Email per distinct address (case-insensitive), queued independently. More than `MARKETING_MAX_RECIPIENTS` (optional var, default 100) → `400`.

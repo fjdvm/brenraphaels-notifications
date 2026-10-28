@@ -58,6 +58,7 @@
   @media (max-width:760px) { .cols { grid-template-columns:1fr; gap:24px; } nav { position:static; } h1 { font-size:34px; } .page { padding-top:36px; } }
 </style></head>
 <body>
+<p>App email supports an optional <code>Idempotency-Key</code> header (1–255 nonblank characters). Retries with the same App, recipient and key reuse the original Email id, content and Message-ID and return its current queued, sent or failed status. Retry queue submission failures with the same key.</p>
 <div class="page">
   <div class="eyebrow">Documentation</div>
   <h1>How to use the Notifications API</h1>
