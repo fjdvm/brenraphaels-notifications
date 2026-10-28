@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { Config } from '../config';
 import type { Db } from '../db/client';
 import { emails } from '../db/schema';
@@ -11,6 +11,8 @@ import {
   retryDelaySeconds,
 } from './retry';
 
+type EmailDatabase = Pick<Db, 'select' | 'insert' | 'update'>;
+
 const senderFor = (config: Config, category: 'app' | 'marketing') =>
   category === 'app'
     ? { address: config.APP_EMAIL_SENDER, name: config.APP_EMAIL_SENDER_NAME }
@@ -20,9 +22,10 @@ const senderFor = (config: Config, category: 'app' | 'marketing') =>
       };
 
 export async function createEmail(
-  db: Db,
+  db: EmailDatabase,
   config: Config,
   input: {
+    idempotencyKey?: string;
     template: string;
     recipient: string;
     sendingApp: string;
@@ -33,6 +36,7 @@ export async function createEmail(
   const [row] = await db
     .insert(emails)
     .values({
+      idempotencyKey: input.idempotencyKey,
       category: templates[input.template]!.category,
       template: input.template,
       recipient: input.recipient,
@@ -46,17 +50,21 @@ export async function createEmail(
       createdAt: new Date(),
       updatedAt: new Date(),
     })
+    .onConflictDoUpdate({
+      target: [emails.sendingApp, emails.recipient, emails.idempotencyKey],
+      set: { id: sql`${emails.id}` },
+    })
     .returning();
   return row!;
 }
 
-export async function getEmail(db: Db, id: string) {
+export async function getEmail(db: EmailDatabase, id: string) {
   const [row] = await db.select().from(emails).where(eq(emails.id, id));
   return row;
 }
 
 async function update(
-  db: Db,
+  db: EmailDatabase,
   id: string,
   set: Partial<typeof emails.$inferInsert>,
 ) {
@@ -66,13 +74,21 @@ async function update(
     .where(eq(emails.id, id));
 }
 
-const markFailed = (db: Db, id: string, attempts: number, reason: string) =>
-  update(db, id, { status: 'failed', failureReason: reason, attempts });
+const markFailed = (
+  db: EmailDatabase,
+  id: string,
+  attempts: number,
+  reason: string,
+) => update(db, id, { status: 'failed', failureReason: reason, attempts });
 
-const markSent = (db: Db, id: string, attempts: number) =>
+const markSent = (db: EmailDatabase, id: string, attempts: number) =>
   update(db, id, { status: 'sent', failureReason: null, attempts });
 
-export async function markEnqueueFailed(db: Db, id: string, err: unknown) {
+export async function markEnqueueFailed(
+  db: EmailDatabase,
+  id: string,
+  err: unknown,
+) {
   const email = await getEmail(db, id);
   if (email)
     await markFailed(
@@ -90,6 +106,20 @@ export interface Delivery {
 
 export async function deliverEmail(
   db: Db,
+  config: Config,
+  id: string,
+): Promise<Delivery> {
+  const email = await getEmail(db, id);
+  if (!email?.idempotencyKey) return deliverLockedEmail(db, config, id);
+  // Keyed request retries serialize on the same Email, including queue redelivery.
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT id FROM emails WHERE id = ${id} FOR UPDATE`);
+    return deliverLockedEmail(tx, config, id);
+  });
+}
+
+async function deliverLockedEmail(
+  db: EmailDatabase,
   config: Config,
   id: string,
 ): Promise<Delivery> {

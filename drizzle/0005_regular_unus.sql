@@ -1,0 +1,2 @@
+ALTER TABLE "emails" ADD COLUMN "idempotency_key" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "emails_request_recipient_idx" ON "emails" USING btree ("sending_app","recipient","idempotency_key");

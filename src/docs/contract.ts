@@ -21,6 +21,7 @@ export interface RouteSpec {
   /** `token` routes need the bearer token; `open` routes need nothing. */
   auth: 'token' | 'open';
   query?: ZodType;
+  headers?: ZodType;
   body?: ZodType;
   success: { status: number; description: string; schema?: ZodType };
   /** Statuses beyond the ones every token route can answer (400, 401, 500). */
@@ -129,11 +130,17 @@ export const routes = {
     path: '/emails/app',
     summary: 'Queue an App email',
     auth: 'token',
+    headers: z.object({
+      'Idempotency-Key': z.string().trim().min(1).max(255).optional(),
+    }),
     body: appEmailRequest,
     success: {
       status: 202,
-      description: 'Queued for delivery.',
-      schema: emailQueued,
+      description:
+        'Queued for delivery. Optional Idempotency-Key reuses the original Email, scoped to App and recipient.',
+      schema: emailQueued.extend({
+        status: z.enum(['queued', 'sent', 'failed']),
+      }),
     },
     errors: [],
   },

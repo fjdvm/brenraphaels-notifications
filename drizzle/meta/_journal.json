@@ -36,6 +36,13 @@
       "when": 1792994976446,
       "tag": "0004_notification_idempotency",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793170537878,
+      "tag": "0005_regular_unus",
+      "breakpoints": true
     }
   ]
 }
