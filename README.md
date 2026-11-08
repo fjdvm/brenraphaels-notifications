@@ -25,11 +25,20 @@ docker run --rm --env-file .env -p 8080:8080 notifications:local
 
 The runtime runs as the unprivileged `node` user. No Workers runtime, Cloudflare bindings or Cloudflare credentials are needed. `GET /health` is unauthenticated and returns `200 {"status":"ok"}` after startup recovery succeeds. Configure the platform's HTTP probe on `/health` and its target port to match `PORT`. SIGTERM/SIGINT stop HTTP and live connections and allow active deliveries to finish, with a 35-second shutdown deadline.
 
-Node adapters preserve the existing delivery and relay interfaces while follow-up Portal tickets #148–#150 add their dedicated container acceptance coverage. WebSocket rooms are in memory, so run exactly one replica; clients reconnect after restart. Email scheduling uses timers and recovers queued rows once on startup, with no interval polling. A bundled SMTP adapter uses Nodemailer with STARTTLS on port 587; the legacy worker-mailer dependency is used only by the unchanged legacy test harness. `src/index.ts` and `wrangler.jsonc` remain for rollback and those tests; production starts at `src/node/server.ts`.
+Node adapters preserve the existing delivery and relay interfaces. Portal ticket #148 verifies live rooms at the container boundary; follow-up tickets #149–#150 cover Email delivery. WebSocket rooms are in memory, so run exactly one replica; clients reconnect after restart. Email scheduling uses timers and recovers queued rows once on startup, with no interval polling. A bundled SMTP adapter uses Nodemailer with STARTTLS on port 587; the legacy worker-mailer dependency is used only by the unchanged legacy test harness. `src/index.ts` and `wrangler.jsonc` remain for rollback and those tests; production starts at `src/node/server.ts`.
 
 ## CI
 
 `.github/workflows/deploy.yml` runs typecheck, lint and the existing tests. A separate job builds the Docker image, migrates a disposable Postgres database, starts the actual image with production-shaped environment variables and checks health, authentication, creating and reading one Notification, the docs and MCP. The job uses no production credentials. Re-run its HTTP checks with `SMOKE_URL=http://localhost:8080 API_TOKEN=... npm run smoke`.
+
+`npm run smoke:live` exercises the running image over real HTTP/WebSocket connections: gateway-secret rejection on all three live routes, two-way Conversation relay, Ticket isolation, offline message drops, Notification push to all recipient tabs with App/user isolation, and Order event isolation. It then restarts the named container, waits for health, reconnects to the same Ticket without history and repeats delivery checks. No database inspection or polling for messages is used. Health polling only waits for startup; `ping`/`pong` provides a processing barrier when checking that an unrelated socket received nothing.
+
+```bash
+SMOKE_URL=http://localhost:8080 API_TOKEN=... GATEWAY_SECRET=... \
+  SMOKE_CONTAINER=notifications-local npm run smoke:live
+```
+
+Use a disposable container and database: the script creates Notifications and restarts `SMOKE_CONTAINER` through the Docker CLI. CI runs it against its smoke container after the HTTP checks. Room state is ephemeral; Notifications remain stored, while Conversations and Order events have no replay. The gateway validates Live tickets before forwarding the existing `x-gateway-secret`; the service rejects absent or incorrect secrets before upgrading. Production requires exactly one replica. This ticket changes no schema and needs no production migration.
 
 The workflow no longer deploys to Cloudflare or migrates the production database on merge. GHCR publication and Azure deployment are handled by the subsequent delivery ticket; the existing Worker is kept serving until cutover is verified.
 
