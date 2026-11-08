@@ -7,35 +7,45 @@
   "license": "UNLICENSED",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "dev": "npm run build && node --env-file-if-exists=.env dist/server.mjs",
     "typecheck": "tsc",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "lint": "oxlint --type-aware src/ test/",
     "db:migrate": "drizzle-kit migrate",
     "db:generate": "drizzle-kit generate",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build": "node scripts/build.mjs",
+    "start": "node dist/server.mjs",
+    "dev:worker": "wrangler dev",
+    "smoke": "node scripts/smoke.mjs",
+    "deploy:worker": "wrangler deploy"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261015.1",
     "@types/node": "^24.0.0",
+    "@types/nodemailer": "^8.0.2",
+    "@types/ws": "^8.18.2",
     "@vitest/coverage-v8": "^4.1.2",
     "drizzle-kit": "^0.31.11",
+    "esbuild": "^0.28.2",
     "oxlint": "^1.58.0",
     "oxlint-tsgolint": "^7.0.2001",
     "prettier": "^3.4.2",
     "typescript": "^6.0.2",
     "vite": "^8.0.0",
     "vitest": "^4.1.2",
+    "worker-mailer": "^1.2.1",
     "wrangler": "^4.151.0"
   },
   "dependencies": {
+    "@hono/node-server": "^2.1.6",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "drizzle-orm": "^0.45.4",
     "hono": "^4.13.13",
+    "nodemailer": "^10.4.0",
     "postgres": "^3.4.9",
-    "worker-mailer": "^1.2.1",
+    "ws": "^8.22.2",
     "zod": "^4.6.7"
   }
 }

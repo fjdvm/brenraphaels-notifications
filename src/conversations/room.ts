@@ -33,10 +33,12 @@ export class ConversationRoom {
     // Injectable because a 101 Response only exists inside workerd.
     private upgrade: (client: WebSocket) => Response = (client) =>
       new Response(null, { status: 101, webSocket: client }),
+    configurePings: (ctx: DurableObjectState) => void = (ctx) =>
+      ctx.setWebSocketAutoResponse(
+        new WebSocketRequestResponsePair('ping', 'pong'),
+      ),
   ) {
-    ctx.setWebSocketAutoResponse(
-      new WebSocketRequestResponsePair('ping', 'pong'),
-    );
+    configurePings(ctx);
   }
 
   async fetch(request: Request): Promise<Response> {

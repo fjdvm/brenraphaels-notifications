@@ -1,41 +1,37 @@
 # Notifications
 
-Hono Worker on Cloudflare (see `docs/adr/`), deployed as `br-notifications` at https://br-notifications.jude-nitram08.workers.dev. Email goes through Brevo's SMTP relay (ADR-0004) via a Cloudflare Queue; records live in Neon through Drizzle.
+Hono HTTP service running on Node 24, packaged for Azure Container Apps (ADR-0005). REST routes, the docs page and stateless MCP keep the existing API contract. Records remain in Neon through Drizzle. The old Cloudflare deployment stays available during the staged cutover in Portal Spec#138.
 
 ## Setup
 
 ```bash
-npm install
-npx wrangler secret put SMTP_USER
-npx wrangler secret put SMTP_PASSWORD
-npx wrangler secret put DATABASE_URL
-npx wrangler secret put API_TOKEN
-npx wrangler secret put GATEWAY_SECRET
-npx wrangler queues create notifications-email
-npx wrangler deploy
+npm ci
+cp .env.production.example .env
+# Fill in .env with the existing database, SMTP and caller credentials.
+npm run db:migrate
+npm run dev
 ```
 
-`SMTP_HOST`, `SMTP_PORT`, `APP_EMAIL_SENDER`, `APP_EMAIL_SENDER_NAME`, `MARKETING_EMAIL_SENDER` and `MARKETING_EMAIL_SENDER_NAME` (the marketing category sends from its own address) are vars in `wrangler.jsonc`. Both senders must be verified in Brevo. Copy values into `.env` for local use (gitignored). Apply migrations with `npm run db:migrate` (reads `DATABASE_URL` from `.env`).
+`npm run build` bundles the Node entrypoint and the HTML guide; `npm start` runs `node dist/server.mjs` with environment variables already supplied. `npm run dev` additionally reads `.env`. Missing or invalid configuration fails startup without printing secret values. `PORT` defaults to `8080`; the listener binds to `0.0.0.0`. Both sender addresses must be verified in Brevo.
 
-## CI/CD
+`.env.production.example` lists required and optional runtime keys. `DATABASE_URL`, `SMTP_USER`, `SMTP_PASSWORD`, `API_TOKEN` and `GATEWAY_SECRET` are secrets. Existing keys and database records are unchanged. No new schema or data migration is required; `db:migrate` applies the existing migrations to a new database.
 
-`.github/workflows/deploy.yml` runs typecheck, lint and tests on every push and pull request. Every push to `main` (including a merged pull request) then applies migrations and runs `wrangler deploy`, only if the tests pass. The Worker's own secrets (SMTP, `DATABASE_URL`, `API_TOKEN`) stay in Cloudflare (`wrangler secret put`); the workflow needs three GitHub repository secrets:
+## Container
 
-| Secret | Where to get it |
-| --- | --- |
-| `CLOUDFLARE_API_TOKEN` | Cloudflare dashboard, My Profile, API Tokens, Create Token, template **Edit Cloudflare Workers**, set Account Resources to this account. Queues are used, so also add Account, Cloudflare Queues, Edit. Copy it once; it is not shown again. |
-| `CLOUDFLARE_ACCOUNT_ID` | `npx wrangler whoami` prints it, or the dashboard's Workers & Pages overview (right-hand side). |
-| `DATABASE_URL` | The same Neon connection string as in `.env` (Neon console, the project's Connect dialog, direct connection). Used only to apply migrations. |
-
-Set them with the GitHub CLI so nothing is pasted into a page (`CLOUDFLARE_API_TOKEN` prompts for the value; `DATABASE_URL` is read from `.env`, quotes stripped):
-
-```sh
-gh secret set CLOUDFLARE_API_TOKEN
-gh secret set CLOUDFLARE_ACCOUNT_ID
-gh secret set DATABASE_URL --body "$(grep '^DATABASE_URL=' .env | cut -d= -f2- | tr -d '"')"
+```bash
+docker build -t notifications:local .
+docker run --rm --env-file .env -p 8080:8080 notifications:local
 ```
 
-All `/emails/*` routes need `Authorization: Bearer <API_TOKEN>`.
+The runtime runs as the unprivileged `node` user. No Workers runtime, Cloudflare bindings or Cloudflare credentials are needed. `GET /health` is unauthenticated and returns `200 {"status":"ok"}` after startup recovery succeeds. Configure the platform's HTTP probe on `/health` and its target port to match `PORT`. SIGTERM/SIGINT stop HTTP and live connections and allow active deliveries to finish, with a 35-second shutdown deadline.
+
+Node adapters preserve the existing delivery and relay interfaces while follow-up Portal tickets #148–#150 add their dedicated container acceptance coverage. WebSocket rooms are in memory, so run exactly one replica; clients reconnect after restart. Email scheduling uses timers and recovers queued rows once on startup, with no interval polling. A bundled SMTP adapter uses Nodemailer with STARTTLS on port 587; the legacy worker-mailer dependency is used only by the unchanged legacy test harness. `src/index.ts` and `wrangler.jsonc` remain for rollback and those tests; production starts at `src/node/server.ts`.
+
+## CI
+
+`.github/workflows/deploy.yml` runs typecheck, lint and the existing tests. A separate job builds the Docker image, migrates a disposable Postgres database, starts the actual image with production-shaped environment variables and checks health, authentication, creating and reading one Notification, the docs and MCP. The job uses no production credentials. Re-run its HTTP checks with `SMOKE_URL=http://localhost:8080 API_TOKEN=... npm run smoke`.
+
+The workflow no longer deploys to Cloudflare or migrates the production database on merge. GHCR publication and Azure deployment are handled by the subsequent delivery ticket; the existing Worker is kept serving until cutover is verified.
 
 ## Endpoints
 
@@ -59,7 +55,7 @@ All `/emails/*` routes need `Authorization: Bearer <API_TOKEN>`.
 
 ## Tests
 
-Tests drive the Worker's `fetch` and `queue` handlers with the SMTP client stubbed against a real Postgres.
+The existing tests drive the legacy `fetch` and `queue` handlers with the SMTP client stubbed against a real Postgres.
 
 ```bash
 docker run -d -e POSTGRES_PASSWORD=test -p 54329:5432 postgres:17-alpine

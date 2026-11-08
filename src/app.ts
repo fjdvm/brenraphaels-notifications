@@ -378,11 +378,12 @@ app.post('/orders/events', async (c) => {
 
 // The guide and the OpenAPI document need no token: they describe the API.
 const openApiDocument = buildOpenApiDocument();
+app.get('/health', (c) => c.json({ status: 'ok' }));
 app.get('/openapi.json', (c) => c.json(openApiDocument));
 app.get('/docs', (c) => c.html(guide));
 
 // Stateless remote MCP server. Each tool calls a route of this app in-process
 // with the caller's own token.
 app.post('/mcp', (c) =>
-  handleMcp(c.req.raw, (request) => app.fetch(request, c.env, c.executionCtx)),
+  handleMcp(c.req.raw, (request) => app.fetch(request, c.env)),
 );

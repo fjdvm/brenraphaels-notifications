@@ -261,6 +261,7 @@ curl -X POST "$BASE_URL/mcp" -H "Authorization: Bearer $API_TOKEN" \\
   responses:[['200','An OpenAPI 3.1 document']],
   example:`curl "$BASE_URL/openapi.json"
 # 200 {"openapi":"3.1.0","info":{"title":"Notifications", …}, "paths":{…}}` },
+{ id:'get-health', title:'Health', method:'GET', path:'/health', role:'open', intro:'Platform health probe. Available once configuration is valid and pending Emails have been loaded at startup.', fields:[], example:`curl "$BASE_URL/health"\n# 200 {"status":"ok"}` },
 { id:'get-docs', title:'This guide', method:'GET', path:'/docs', role:'open', intro:'The page you are reading. No header needed.',
   responses:[['200','This HTML page']],
   example:`curl "$BASE_URL/docs"` }
