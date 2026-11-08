@@ -1,4 +1,4 @@
-name: CI and deploy
+name: CI and container smoke
 
 on:
   push:
@@ -34,11 +34,32 @@ jobs:
       - run: npm run lint
       - run: npm test
 
-  deploy:
-    # Runs for every push to main, including merged pull requests.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  container-smoke:
     needs: test
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: test
+        ports: ['54329:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      DATABASE_URL: postgres://postgres:test@127.0.0.1:54329/postgres
+      SMTP_HOST: smtp.example.com
+      SMTP_PORT: '587'
+      SMTP_USER: smoke
+      SMTP_PASSWORD: smoke
+      APP_EMAIL_SENDER: apps@example.com
+      MARKETING_EMAIL_SENDER: marketing@example.com
+      API_TOKEN: smoke-token-0123456789
+      GATEWAY_SECRET: smoke-gateway-0123456789
+      PORT: '18087'
+      SMOKE_URL: http://127.0.0.1:18087
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -46,12 +67,28 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Apply database migrations
+      - name: Migrate disposable database
         run: npm run db:migrate
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      - name: Deploy Worker
-        run: npx wrangler deploy
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Build Node image
+        run: docker build -t notifications:smoke .
+      - name: Start image
+        run: |
+          docker run -d --name notifications-smoke --network host \
+            -e DATABASE_URL -e SMTP_HOST -e SMTP_PORT -e SMTP_USER -e SMTP_PASSWORD \
+            -e APP_EMAIL_SENDER -e MARKETING_EMAIL_SENDER -e API_TOKEN -e GATEWAY_SECRET \
+            -e PORT notifications:smoke
+      - name: Wait for health
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent "$SMOKE_URL/health"; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Exercise container HTTP interface
+        run: npm run smoke
+      - name: Container logs
+        if: always()
+        run: docker logs notifications-smoke
+      - name: Stop container
+        if: always()
+        run: docker rm -f notifications-smoke

@@ -33,10 +33,12 @@ export class ConversationRoom {
     // Injectable because a 101 Response only exists inside workerd.
     private upgrade: (client: WebSocket) => Response = (client) =>
       new Response(null, { status: 101, webSocket: client }),
+    configurePings: (ctx: DurableObjectState) => void = (ctx) =>
+      ctx.setWebSocketAutoResponse(
+        new WebSocketRequestResponsePair('ping', 'pong'),
+      ),
   ) {
-    ctx.setWebSocketAutoResponse(
-      new WebSocketRequestResponsePair('ping', 'pong'),
-    );
+    configurePings(ctx);
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -53,17 +55,22 @@ export class ConversationRoom {
       WebSocket,
     ];
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({
+    this.join(server, who);
+    return this.upgrade(client);
+  }
+
+  /** Attaches the same protocol state and presence for either runtime. */
+  join(ws: WebSocket, who: { userId: string; role: Role }) {
+    ws.serializeAttachment({
       ...who,
       windowStart: Date.now(),
       count: 0,
     } satisfies Attachment);
-    this.broadcast(server, {
+    this.broadcast(ws, {
       type: 'presence',
       event: 'connected',
       ...who,
     });
-    return this.upgrade(client);
   }
 
   webSocketMessage(ws: WebSocket, data: string | ArrayBuffer) {

@@ -39,6 +39,18 @@ const emailQueued = z.object({
  * and the list disagree.
  */
 export const routes = {
+  health: {
+    method: 'get',
+    path: '/health',
+    summary: 'Platform health probe',
+    auth: 'open',
+    success: {
+      status: 200,
+      description: 'The HTTP service is ready.',
+      schema: z.object({ status: z.literal('ok') }),
+    },
+    errors: [],
+  },
   sendNotification: {
     method: 'post',
     path: '/notifications',
