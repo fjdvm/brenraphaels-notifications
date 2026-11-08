@@ -71,7 +71,7 @@ describe('temporary failures', () => {
     expect(await status()).toMatchObject({
       status: 'failed',
       failureReason: 'Socket timeout!',
-      attempts: 3,
+      attempts: 2,
     });
   });
 });

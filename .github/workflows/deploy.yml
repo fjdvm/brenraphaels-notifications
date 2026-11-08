@@ -50,8 +50,8 @@ jobs:
           --health-retries 15
     env:
       DATABASE_URL: postgres://postgres:test@127.0.0.1:54329/postgres
-      SMTP_HOST: smtp.example.com
-      SMTP_PORT: '587'
+      SMTP_HOST: 127.0.0.1
+      SMTP_PORT: '18088'
       SMTP_USER: smoke
       SMTP_PASSWORD: smoke
       APP_EMAIL_SENDER: apps@example.com
@@ -88,6 +88,10 @@ jobs:
         run: npm run smoke
       - name: Exercise container WebSocket interface and restart
         run: npm run smoke:live
+        env:
+          SMOKE_CONTAINER: notifications-smoke
+      - name: Exercise container Email retries and restart
+        run: npm run smoke:email
         env:
           SMOKE_CONTAINER: notifications-smoke
       - name: Container logs

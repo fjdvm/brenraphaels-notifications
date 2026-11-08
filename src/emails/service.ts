@@ -126,6 +126,16 @@ async function deliverLockedEmail(
   const email = await getEmail(db, id);
   if (!email || email.status !== 'queued') return {};
 
+  if (Date.now() >= email.createdAt.getTime() + RETRY_WINDOW_MS) {
+    await markFailed(
+      db,
+      id,
+      email.attempts,
+      email.failureReason ?? 'Email expired after the 24-hour retry window',
+    );
+    return {};
+  }
+
   // Rows queued before Message-IDs were assigned at creation have none yet.
   let messageId = email.messageId;
   if (!messageId) {
