@@ -102,9 +102,9 @@ describe('Marketing email delivery', () => {
     const [marketing, app] = h.smtpCalls.map((c) => c.email);
     expect(marketing.from).toEqual({
       name: 'Test Marketing',
-      email: 'marketing@example.com',
+      address: 'marketing@example.com',
     });
-    expect(app.from.email).toBe('apps@example.com');
+    expect(app.from.address).toBe('apps@example.com');
     expect(marketing.subject).toBe('Autumn sale');
     expect(marketing.html).toContain('Everything is 20% off.');
     expect(marketing.html).toContain('src="https://cdn.example.com/a.png"');

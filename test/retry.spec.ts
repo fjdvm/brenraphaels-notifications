@@ -22,7 +22,7 @@ describe('classifyFailure', () => {
     'Failed to EHLO. 421 service not available',
     'Invalid RCPT TO: <a@b.c> 450 mailbox busy',
     'Failed to plain authentication: 535 bad credentials',
-    'WorkerMailer is shutting down',
+    'Connection closed',
     'Timed out after 500 ms waiting for the relay',
   ])('treats "%s" as temporary', (m) => expect(kind(m)).toBe('temporary'));
 
@@ -36,5 +36,23 @@ describe('classifyFailure', () => {
     expect(classifyFailure(new PermanentFailure('Unknown template x'))).toEqual(
       { kind: 'permanent', reason: 'Unknown template x' },
     );
+  });
+});
+
+// Nodemailer exposes the reply as responseCode independently of the message text.
+describe('Node SMTP replies', () => {
+  it.each([
+    [421, 'temporary'],
+    [450, 'temporary'],
+    [550, 'permanent'],
+    [554, 'permanent'],
+    [530, 'temporary'],
+    [534, 'temporary'],
+    [535, 'temporary'],
+  ])('classifies reply %i as %s', (responseCode, kind) => {
+    const error = Object.assign(new Error('Relay rejected the send'), {
+      responseCode,
+    });
+    expect(classifyFailure(error).kind).toBe(kind);
   });
 });

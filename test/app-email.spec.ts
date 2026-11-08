@@ -80,12 +80,13 @@ describe('delivery', () => {
     expect(options).toMatchObject({
       host: 'smtp.example.com',
       port: 587,
-      startTls: true,
-      credentials: { username: 'smtp-user', password: 'smtp-password' },
+      secure: false,
+      requireTLS: true,
+      auth: { user: 'smtp-user', pass: 'smtp-password' },
     });
     expect(email.from).toEqual({
       name: 'Test Sender',
-      email: 'apps@example.com',
+      address: 'apps@example.com',
     });
     expect(email.to).toBe('user@example.com');
     expect(email.subject).toBe('Welcome aboard');
@@ -94,7 +95,7 @@ describe('delivery', () => {
 
     const record = (await (await h.getEmail(id)).json()) as any;
     expect(record).toMatchObject({ status: 'sent', attempts: 1 });
-    expect(record.messageId).toBe(email.headers['Message-ID']);
+    expect(record.messageId).toBe(email.messageId);
     expect(record.messageId).toMatch(/^<[0-9a-f-]+@example\.com>$/);
   });
 
