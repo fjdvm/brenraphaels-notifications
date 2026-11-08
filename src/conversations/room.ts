@@ -55,17 +55,22 @@ export class ConversationRoom {
       WebSocket,
     ];
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({
+    this.join(server, who);
+    return this.upgrade(client);
+  }
+
+  /** Attaches the same protocol state and presence for either runtime. */
+  join(ws: WebSocket, who: { userId: string; role: Role }) {
+    ws.serializeAttachment({
       ...who,
       windowStart: Date.now(),
       count: 0,
     } satisfies Attachment);
-    this.broadcast(server, {
+    this.broadcast(ws, {
       type: 'presence',
       event: 'connected',
       ...who,
     });
-    return this.upgrade(client);
   }
 
   webSocketMessage(ws: WebSocket, data: string | ArrayBuffer) {

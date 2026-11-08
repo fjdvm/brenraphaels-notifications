@@ -2,6 +2,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { Buffer } from 'node:buffer';
 import type { Server } from 'node:http';
 import { ConversationRoom } from '../conversations/room';
+import { connectQuery } from '../conversations/schemas';
 import type { Env } from '../config';
 
 class Socket {
@@ -122,35 +123,17 @@ export function createLive() {
             kind === 'conversation'
               ? new ConversationRoom(context, {}, undefined, () => {})
               : undefined;
-          client.serializeAttachment({
-            ...who,
-            windowStart: Date.now(),
-            count: 0,
-          });
           const asWorkerSocket = client as unknown as globalThis.WebSocket;
-          if (conversation) {
-            for (const other of members) {
-              if (other !== client) {
-                try {
-                  other.send(
-                    JSON.stringify({
-                      type: 'presence',
-                      event: 'connected',
-                      ...who,
-                    }),
-                  );
-                } catch {
-                  /* Closing. */
-                }
-              }
-            }
-          }
+          if (conversation)
+            conversation.join(asWorkerSocket, connectQuery.parse(who));
           connection.on('message', (data, binary) => {
-            const text = Buffer.isBuffer(data)
-              ? data.toString('utf8')
-              : Buffer.from(
-                  data instanceof ArrayBuffer ? data : Buffer.concat(data),
-                ).toString('utf8');
+            const bytes =
+              data instanceof ArrayBuffer
+                ? new Uint8Array(data)
+                : Array.isArray(data)
+                  ? Buffer.concat(data)
+                  : data;
+            const text = new TextDecoder().decode(bytes);
             if (!binary && text === 'ping') {
               connection.send('pong');
               return;

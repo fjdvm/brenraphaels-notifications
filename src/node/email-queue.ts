@@ -17,7 +17,7 @@ export function createEmailQueue(config: Config) {
       setTimeout(
         () => {
           timers.delete(emailId);
-          const delivery = run(emailId);
+          const delivery = run(emailId).catch(console.error);
           active.set(emailId, delivery);
         },
         Math.max(0, delay),
@@ -34,7 +34,12 @@ export function createEmailQueue(config: Config) {
       console.error(error);
       retry = 30;
     } finally {
-      await close();
+      try {
+        await close();
+      } catch (error) {
+        console.error(error);
+        retry ??= 30;
+      }
       active.delete(emailId);
       if (retry !== undefined) schedule(emailId, retry * 1000);
     }

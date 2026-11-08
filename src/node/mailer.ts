@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { SEND_TIMEOUT_MS } from '../smtp';
 
 /** Compatibility boundary for the existing delivery service during the Node migration. */
 export const WorkerMailer = {
@@ -19,6 +20,9 @@ export const WorkerMailer = {
     },
   ) {
     const transport = nodemailer.createTransport({
+      pool: true,
+      maxConnections: 1,
+      maxMessages: 1,
       host: options.host,
       port: options.port,
       secure: options.secure,
@@ -31,6 +35,11 @@ export const WorkerMailer = {
       greetingTimeout: 30_000,
       socketTimeout: 30_000,
     });
+    // The delivery deadline must also close the socket, not only reject its caller.
+    const deadline = setTimeout(
+      () => transport.close({ force: true }),
+      SEND_TIMEOUT_MS,
+    );
     try {
       await transport.sendMail({
         ...message,
@@ -44,6 +53,7 @@ export const WorkerMailer = {
         messageId: message.headers['Message-ID'],
       });
     } finally {
+      clearTimeout(deadline);
       transport.close();
     }
   },
