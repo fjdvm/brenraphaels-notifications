@@ -86,6 +86,10 @@ jobs:
           exit 1
       - name: Exercise container HTTP interface
         run: npm run smoke
+      - name: Exercise container WebSocket interface and restart
+        run: npm run smoke:live
+        env:
+          SMOKE_CONTAINER: notifications-smoke
       - name: Container logs
         if: always()
         run: docker logs notifications-smoke
