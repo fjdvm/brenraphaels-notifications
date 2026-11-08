@@ -40,7 +40,15 @@ SMOKE_URL=http://localhost:8080 API_TOKEN=... GATEWAY_SECRET=... \
 
 Use a disposable container and database: the script creates Notifications and restarts `SMOKE_CONTAINER` through the Docker CLI. CI runs it against its smoke container after the HTTP checks. Room state is ephemeral; Notifications remain stored, while Conversations and Order events have no replay. The gateway validates Live tickets before forwarding the existing `x-gateway-secret`; the service rejects absent or incorrect secrets before upgrading. Production requires exactly one replica. This ticket changes no schema and needs no production migration.
 
-The workflow no longer deploys to Cloudflare or migrates the production database on merge. GHCR publication and Azure deployment are handled by the subsequent delivery ticket; the existing Worker is kept serving until cutover is verified.
+The workflow no longer deploys to Cloudflare or migrates the production database on merge; the existing Worker keeps serving until cutover is verified.
+
+## Azure deployment (Portal #151)
+
+On every push to `main`, after the tests and container smoke pass, the `deploy` job pushes `ghcr.io/fjdvm/brenraphaels-notifications:<sha>` (and `latest`), logs into Azure with OIDC and runs `scripts/azure-deploy.sh`. The script creates or updates the `notifications` Container App in `rg-brenraphaels` / `cae-brenraphaels` with min = max = 1 replica (0.25 vCPU, 0.5 GiB), external ingress on port 8080 and startup, liveness and readiness probes on `/health`. The job then checks `/health` on the default address and that the replica counts are 1/1.
+
+Repository secrets: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `GHCR_PULL_TOKEN`, `DATABASE_URL`, `SMTP_USER`, `SMTP_PASSWORD`, `API_TOKEN`, `GATEWAY_SECRET`. Repository variables: `GHCR_USERNAME`, `SMTP_HOST`, `SMTP_PORT`, `APP_EMAIL_SENDER`, `APP_EMAIL_SENDER_NAME`, `MARKETING_EMAIL_SENDER`, `MARKETING_EMAIL_SENDER_NAME`. Secrets become Container Apps secrets and are referenced by name, so none is printed in logs.
+
+Both this service and the Cloudflare Worker use the same database. While both run, an Email that is pending at Azure startup may also be retried by the Cloudflare queue, so a duplicate send is possible during the cutover window.
 
 ## Endpoints
 
