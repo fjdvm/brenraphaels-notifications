@@ -19,15 +19,8 @@ SECRETS=(
   "database-url=$DATABASE_URL" "smtp-user=$SMTP_USER" "smtp-password=$SMTP_PASSWORD"
   "api-token=$API_TOKEN" "gateway-secret=$GATEWAY_SECRET" "ghcr-pull-token=$GHCR_PULL_TOKEN"
 )
-ENVVARS=(
-  "PORT=8080" "SMTP_HOST=$SMTP_HOST" "SMTP_PORT=$SMTP_PORT"
-  "APP_EMAIL_SENDER=$APP_EMAIL_SENDER" "APP_EMAIL_SENDER_NAME=${APP_EMAIL_SENDER_NAME:-Bren Raphael's}"
-  "MARKETING_EMAIL_SENDER=$MARKETING_EMAIL_SENDER"
-  "MARKETING_EMAIL_SENDER_NAME=${MARKETING_EMAIL_SENDER_NAME:-Bren Raphael's}"
-  "DATABASE_URL=secretref:database-url" "SMTP_USER=secretref:smtp-user"
-  "SMTP_PASSWORD=secretref:smtp-password" "API_TOKEN=secretref:api-token"
-  "GATEWAY_SECRET=secretref:gateway-secret"
-)
+# Env vars are set in the YAML patch below: passing values containing quotes
+# (e.g. "Bren Raphael's") through az CLI arguments silently truncated the list.
 
 if az containerapp show -n "$APP" -g "$RG" >/dev/null 2>&1; then
   az containerapp secret set -n "$APP" -g "$RG" --secrets "${SECRETS[@]}" >/dev/null
@@ -35,17 +28,17 @@ if az containerapp show -n "$APP" -g "$RG" >/dev/null 2>&1; then
     --username "$GHCR_USERNAME" --password "$GHCR_PULL_TOKEN" >/dev/null
   az containerapp update -n "$APP" -g "$RG" --image "$IMAGE" \
     --min-replicas 1 --max-replicas 1 --cpu 0.25 --memory 0.5Gi \
-    --set-env-vars "${ENVVARS[@]}" >/dev/null
+    >/dev/null
 else
   az containerapp create -n "$APP" -g "$RG" --environment "$ENV_NAME" --image "$IMAGE" \
     --registry-server ghcr.io --registry-username "$GHCR_USERNAME" \
     --registry-password "$GHCR_PULL_TOKEN" \
     --ingress external --target-port 8080 --transport auto \
     --min-replicas 1 --max-replicas 1 --cpu 0.25 --memory 0.5Gi \
-    --secrets "${SECRETS[@]}" --env-vars "${ENVVARS[@]}" >/dev/null
+    --secrets "${SECRETS[@]}" >/dev/null
 fi
 
-# Health probes (startup, liveness, readiness) on /health. They need YAML; the
+# Env vars and health probes (startup, liveness, readiness) on /health. They need YAML; the
 # exported app template holds no secret values (only secretref names).
 YAML=$(mktemp)
 trap 'rm -f "$YAML"' EXIT
@@ -53,7 +46,19 @@ az containerapp show -n "$APP" -g "$RG" -o json > "$YAML"
 python3 - "$YAML" <<'PY'
 import json, sys
 path = sys.argv[1]
+import os
 app = json.load(open(path))
+env = os.environ
+plain = {"PORT": "8080", "SMTP_HOST": env["SMTP_HOST"], "SMTP_PORT": env["SMTP_PORT"],
+         "APP_EMAIL_SENDER": env["APP_EMAIL_SENDER"],
+         "APP_EMAIL_SENDER_NAME": env.get("APP_EMAIL_SENDER_NAME") or "Bren Raphael's",
+         "MARKETING_EMAIL_SENDER": env["MARKETING_EMAIL_SENDER"],
+         "MARKETING_EMAIL_SENDER_NAME": env.get("MARKETING_EMAIL_SENDER_NAME") or "Bren Raphael's"}
+refs = {"DATABASE_URL": "database-url", "SMTP_USER": "smtp-user", "SMTP_PASSWORD": "smtp-password",
+        "API_TOKEN": "api-token", "GATEWAY_SECRET": "gateway-secret"}
+app["properties"]["template"]["containers"][0]["env"] = (
+    [{"name": k, "value": v} for k, v in plain.items()]
+    + [{"name": k, "secretRef": v} for k, v in refs.items()])
 def probe(kind, **kw):
     return {"type": kind, "httpGet": {"path": "/health", "port": 8080, "scheme": "HTTP"},
             "timeoutSeconds": 5, **kw}
