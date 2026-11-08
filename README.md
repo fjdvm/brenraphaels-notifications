@@ -25,7 +25,7 @@ docker run --rm --env-file .env -p 8080:8080 notifications:local
 
 The runtime runs as the unprivileged `node` user. No Workers runtime, Cloudflare bindings or Cloudflare credentials are needed. `GET /health` is unauthenticated and returns `200 {"status":"ok"}` after startup recovery succeeds. Configure the platform's HTTP probe on `/health` and its target port to match `PORT`. SIGTERM/SIGINT stop HTTP and live connections and allow active deliveries to finish, with a 35-second shutdown deadline.
 
-Node adapters preserve the existing delivery and relay interfaces. Portal ticket #148 verifies live rooms at the container boundary; follow-up tickets #149–#150 cover Email delivery. WebSocket rooms are in memory, so run exactly one replica; clients reconnect after restart. Email scheduling uses timers and recovers queued rows once on startup, with no interval polling. Email delivery uses Nodemailer directly with required STARTTLS on port 587 (or implicit TLS on port 465). Each attempt carries the queued Message-ID and closes its SMTP connection on completion or the 30-second deadline. Tests stub Nodemailer without importing Workers socket modules. `src/index.ts` and `wrangler.jsonc` remain for rollback and those tests; production starts at `src/node/server.ts`.
+Node adapters preserve the existing delivery and relay interfaces. Portal tickets #148–#150 cover live rooms, Node SMTP and timer-based Email retries. WebSocket rooms are in memory, so run exactly one replica; clients reconnect after restart. Each Email has one timer for its next due attempt, with delays of 30 seconds, 60 seconds, 2 minutes and so on, capped at one hour. Startup loads queued rows once and rebuilds timers from the last attempt time; overdue rows run immediately. At 24 hours from queueing, pending Emails are marked failed without opening SMTP again. The last SMTP failure reason is retained, and attempts count only actual delivery attempts. There is no queue service, interval polling or periodic database query while idle. Email delivery uses Nodemailer directly with required STARTTLS on port 587 (or implicit TLS on port 465). Each attempt carries the queued Message-ID and closes its SMTP connection on completion or the 30-second deadline. Tests stub Nodemailer without importing Workers socket modules. `src/index.ts` and `wrangler.jsonc` remain for rollback and those tests; production starts at `src/node/server.ts`.
 
 ## CI
 
@@ -64,7 +64,7 @@ The workflow no longer deploys to Cloudflare or migrates the production database
 
 ## Tests
 
-The existing tests drive the legacy `fetch` and `queue` handlers with the SMTP client stubbed against a real Postgres.
+The existing tests drive the legacy `fetch` and `queue` handlers with the SMTP client stubbed against a real Postgres. `test/email-timers.spec.ts` also drives the HTTP routes with the production Node scheduler and fake timers, covering growing delays, the one-hour cap, restart recovery, duplicate keyed submissions, expiry and zero idle database queries.
 
 ```bash
 docker run -d -e POSTGRES_PASSWORD=test -p 54329:5432 postgres:17-alpine

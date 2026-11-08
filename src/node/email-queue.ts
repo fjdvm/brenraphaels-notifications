@@ -5,7 +5,7 @@ import { emails } from '../db/schema';
 import { deliverEmail } from '../emails/service';
 import { RETRY_WINDOW_MS, retryDelaySeconds } from '../emails/retry';
 
-/** A temporary Node queue adapter; pending rows are recovered once, never polled. */
+/** Per-Email timers behind the shared enqueue interface; no queue service or polling. */
 export function createEmailQueue(config: Config) {
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   const active = new Map<string, Promise<void>>();
