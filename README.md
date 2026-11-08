@@ -70,3 +70,5 @@ The existing tests drive the legacy `fetch` and `queue` handlers with the SMTP c
 docker run -d -e POSTGRES_PASSWORD=test -p 54329:5432 postgres:17-alpine
 npm test   # TEST_DATABASE_URL overrides the default postgres://postgres:test@localhost:54329/postgres
 ```
+
+`npm run smoke:email` verifies a running container against a local SMTP fixture that replies `421`: an Email stays queued, survives `docker restart`, and retries once at its original 30-second due time. CI starts the container with `SMTP_HOST=127.0.0.1`, `SMTP_PORT=18088` and host networking; set `SMOKE_CONTAINER` to its name and `SMOKE_URL` to its HTTP address. This uses only the disposable CI database and fixture relay.

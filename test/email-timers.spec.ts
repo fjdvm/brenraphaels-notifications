@@ -5,7 +5,10 @@ import { createEmailQueue } from '../src/node/email-queue';
 import { createHarness } from './harness';
 import { smtp } from './smtp-stub';
 
-const queries = vi.hoisted(() => [] as string[]);
+const database = vi.hoisted(() => ({
+  queries: [] as string[],
+  connections: 0,
+}));
 // Observe the external database boundary while running real SQL, not a fake DB.
 vi.mock('postgres', async (original) => {
   const { default: postgres } = await original<{
@@ -15,11 +18,22 @@ vi.mock('postgres', async (original) => {
     default: (
       url: string,
       options: import('postgres').Options<Record<string, never>>,
-    ) =>
-      postgres(url, {
+    ) => {
+      database.connections++;
+      const client = postgres(url, {
         ...options,
-        debug: (_connection, query) => queries.push(query),
-      }),
+        debug: (_connection, query) => database.queries.push(query),
+      });
+      const end = client.end.bind(client);
+      client.end = async (options) => {
+        try {
+          await end(options);
+        } finally {
+          database.connections--;
+        }
+      };
+      return client;
+    },
   };
 });
 
@@ -59,8 +73,9 @@ async function eventually(check: () => Promise<void>) {
   for (;;) {
     try {
       await check();
-      // Let the delivery finish closing its database connection before advancing time.
-      await pause(30);
+      // The HTTP status can become visible before the delivery connection closes.
+      // Wait for real I/O to finish before advancing the next Email timer.
+      expect(database.connections).toBe(0);
       return;
     } catch (error) {
       if (performance.now() >= deadline) throw error;
@@ -199,19 +214,19 @@ it('does not duplicate a timer when the same keyed HTTP request is repeated', as
 it('makes no periodic database queries while idle, including after delivery completes', async () => {
   const h = service();
   await h.queue.recover();
-  const afterStartup = queries.length;
+  const afterStartup = database.queries.length;
   await vi.advanceTimersByTimeAsync(7 * DAY);
   await pause(30);
-  expect(queries).toHaveLength(afterStartup);
+  expect(database.queries).toHaveLength(afterStartup);
 
   const id = await queueOne(h);
   await eventually(async () =>
     expect(await status(h, id)).toMatchObject({ status: 'sent' }),
   );
-  const afterDelivery = queries.length;
+  const afterDelivery = database.queries.length;
   await vi.advanceTimersByTimeAsync(7 * DAY);
   await pause(30);
-  expect(queries).toHaveLength(afterDelivery);
+  expect(database.queries).toHaveLength(afterDelivery);
 });
 
 it('caps retries at one hour and stops at the deadline without an extra SMTP attempt', async () => {
