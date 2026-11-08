@@ -8,5 +8,4 @@ await build({
   format: 'esm',
   packages: 'external',
   loader: { '.html': 'text' },
-  alias: { 'worker-mailer': './src/node/mailer.ts' },
 });

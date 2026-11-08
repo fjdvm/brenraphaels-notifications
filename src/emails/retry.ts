@@ -21,15 +21,20 @@ export interface Failure {
 const TEMPORARY_5XX = new Set([530, 534, 535]);
 
 /**
- * Sorts a send error into temporary (worth retrying) or permanent. worker-mailer
- * puts the server's reply in the error message, so we read the SMTP code from it:
- * 4xx is temporary, 5xx permanent. No code at all (timeout, dropped socket) means
- * we never got an answer, which is temporary.
+ * Sorts a Node SMTP error by its structured reply code, falling back to reply
+ * text. No reply (timeout or dropped socket) is temporary.
  */
 export function classifyFailure(err: unknown): Failure {
   const reason = err instanceof Error ? err.message : String(err);
   if (err instanceof PermanentFailure) return { kind: 'permanent', reason };
+  const responseCode =
+    err instanceof Error &&
+    'responseCode' in err &&
+    typeof err.responseCode === 'number'
+      ? String(err.responseCode)
+      : undefined;
   const code =
+    responseCode ??
     /(?:^|\s)([45]\d{2})(?:-|\s(?!\s*(?:ms|s|sec|seconds|bytes)\b)|$)/.exec(
       reason,
     )?.[1];

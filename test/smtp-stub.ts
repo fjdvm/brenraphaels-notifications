@@ -5,6 +5,7 @@ export interface SmtpCall {
 
 export const smtp = {
   calls: [] as SmtpCall[],
+  closes: [] as Array<{ force?: boolean } | undefined>,
   /** Fails every send until cleared. */
   failure: undefined as Error | undefined,
   /** One entry per upcoming send; when empty, sends succeed. */
@@ -13,13 +14,14 @@ export const smtp = {
   onSend: undefined as undefined | (() => Promise<void>),
   reset() {
     this.calls = [];
+    this.closes = [];
     this.failure = undefined;
     this.script = [];
     this.onSend = undefined;
   },
 };
 
-/** Stands in for `WorkerMailer.send`: records the call, or fails on demand. */
+/** Stands in for Nodemailer `sendMail`: records the call, or fails on demand. */
 export async function send(options: any, email: any) {
   smtp.calls.push({ options, email });
   await smtp.onSend?.();

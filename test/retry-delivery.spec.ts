@@ -100,7 +100,7 @@ describe('Message-ID', () => {
     const { messageId } = await status();
     await h.drainQueue();
     await h.drainQueue();
-    expect(h.smtpCalls.map((c) => c.email.headers['Message-ID'])).toEqual([
+    expect(h.smtpCalls.map((c) => c.email.messageId)).toEqual([
       messageId,
       messageId,
     ]);
@@ -117,7 +117,7 @@ describe('Message-ID', () => {
     await h.drainQueue();
     await h.drainQueue();
 
-    expect(h.smtpCalls.map((c) => c.email.headers['Message-ID'])).toEqual([
+    expect(h.smtpCalls.map((c) => c.email.messageId)).toEqual([
       messageId,
       messageId,
     ]);
@@ -150,5 +150,6 @@ describe('send timeout', () => {
     }).catch((e: Error) => e);
     await vi.advanceTimersByTimeAsync(SEND_TIMEOUT_MS);
     expect(((await result) as Error).message).toMatch(/Timed out/);
+    expect(smtp.closes).toContainEqual({ force: true });
   });
 });
