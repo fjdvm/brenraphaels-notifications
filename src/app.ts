@@ -14,7 +14,12 @@ import {
   markAllRead,
   markRead,
 } from './notifications/service';
-import { connectToOrders, publishToOrders } from './orders/relay';
+import {
+  connectToOrders,
+  publishToOrders,
+  connectToStaffOrders,
+  publishStaffOrdersChanged,
+} from './orders/relay';
 import { orderConnectQuery, publishOrderEvent } from './orders/schemas';
 import { connectToRoom } from './conversations/connect';
 import { connectToHub, pushToUser } from './live/push';
@@ -81,6 +86,8 @@ const requireGateway = createMiddleware<{ Bindings: Env }>(async (c, next) => {
 app.use('/live', requireGateway);
 app.use('/orders/live', requireGateway);
 app.use('/orders/events', requireToken);
+app.use('/orders/changed', requireToken);
+app.use('/orders/staff/live', requireGateway);
 app.use('/conversations/:ticketId/live', requireGateway);
 
 interface EmailRequest {
@@ -366,6 +373,22 @@ app.get('/orders/live', (c) => {
   const parsed = orderConnectQuery.safeParse(c.req.query());
   if (!parsed.success) return invalid(c, parsed.error);
   return connectToOrders(c.env, parsed.data.userId, c.req.raw);
+});
+
+// Only the gateway may admit Staff; it issues this channel only for CRMS.
+app.get('/orders/staff/live', (c) => {
+  const parsed = orderConnectQuery.safeParse(c.req.query());
+  if (!parsed.success) return invalid(c, parsed.error);
+  return connectToStaffOrders(c.env, c.req.raw);
+});
+
+app.post('/orders/changed', async (c) => {
+  const parsed = z
+    .object({})
+    .strict()
+    .safeParse(await c.req.json().catch(() => undefined));
+  if (!parsed.success) return invalid(c, parsed.error);
+  return publishStaffOrdersChanged(c.env);
 });
 
 app.post('/orders/events', async (c) => {

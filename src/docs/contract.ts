@@ -248,6 +248,33 @@ export const routes = {
     },
     errors: [],
   },
+  staffOrderLive: {
+    method: 'get',
+    path: '/orders/staff/live',
+    summary: 'Gateway-only Staff Orders WebSocket (CRMS Caller tickets only)',
+    auth: 'open',
+    query: orderConnectQuery,
+    success: {
+      status: 101,
+      description:
+        'Requires X-Gateway-Secret. Receives payload-free orders.changed signals.',
+    },
+    errors: [400, 401, 426],
+  },
+  publishStaffOrdersChanged: {
+    method: 'post',
+    path: '/orders/changed',
+    summary: 'Signal every connected Staff Orders socket without storing data',
+    auth: 'token',
+    body: z.object({}).strict(),
+    success: {
+      status: 200,
+      description:
+        'Number of connected Staff sockets reached; offline signals are dropped.',
+      schema: z.object({ connected: z.number().int().nonnegative() }),
+    },
+    errors: [],
+  },
   conversationLive: {
     method: 'get',
     path: '/conversations/:ticketId/live',

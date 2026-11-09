@@ -28,6 +28,20 @@ class Socket {
 export function createLive() {
   const rooms = new Map<string, Set<Socket>>();
   const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
+  const awaitingPong = new Set<WebSocket>();
+  // Protocol pings need no browser timer or data request. A missed pong drops
+  // the connection on the next tick, at most 60 seconds after it dies.
+  const heartbeat = setInterval(() => {
+    for (const connection of wss.clients) {
+      if (awaitingPong.has(connection)) {
+        connection.terminate();
+      } else if (connection.readyState === WebSocket.OPEN) {
+        awaitingPong.add(connection);
+        connection.ping();
+      }
+    }
+  }, 30_000);
+  heartbeat.unref();
   function broadcast(key: string, data: string) {
     let connected = 0;
     for (const socket of rooms.get(key) ?? []) {
@@ -112,6 +126,7 @@ export function createLive() {
           decodeURIComponent(response.headers.get('x-node-who')!),
         );
         wss.handleUpgrade(request, socket, head, (connection) => {
+          connection.on('pong', () => awaitingPong.delete(connection));
           const client = new Socket(connection);
           let members = rooms.get(key);
           if (!members) rooms.set(key, (members = new Set()));
@@ -144,6 +159,7 @@ export function createLive() {
             );
           });
           connection.on('close', (code) => {
+            awaitingPong.delete(connection);
             members.delete(client);
             conversation?.webSocketClose(asWorkerSocket, code);
             if (members.size === 0) rooms.delete(key);
@@ -163,6 +179,8 @@ export function createLive() {
     bindings,
     attach,
     close() {
+      clearInterval(heartbeat);
+      awaitingPong.clear();
       for (const client of wss.clients) client.terminate();
       wss.close();
       rooms.clear();

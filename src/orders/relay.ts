@@ -3,7 +3,9 @@ import type { z } from 'zod';
 import type { orderEvent } from './schemas';
 
 const hubFor = (env: Env, customerId: string) =>
-  env.ORDER_HUB.get(env.ORDER_HUB.idFromName(customerId));
+  env.ORDER_HUB.get(
+    env.ORDER_HUB.idFromName(JSON.stringify(['customer', customerId])),
+  );
 
 export function connectToOrders(
   env: Env,
@@ -23,5 +25,20 @@ export function publishToOrders(
   return hubFor(env, customerId).fetch('http://hub/push', {
     method: 'POST',
     body: JSON.stringify(event),
+  });
+}
+
+// Staff and Customer namespaces cannot collide, even with a crafted user id.
+const staffHub = (env: Env) =>
+  env.ORDER_HUB.get(env.ORDER_HUB.idFromName(JSON.stringify(['staff'])));
+
+export function connectToStaffOrders(env: Env, request: Request) {
+  return staffHub(env).fetch(new Request('http://hub/connect', request));
+}
+
+export function publishStaffOrdersChanged(env: Env) {
+  return staffHub(env).fetch('http://hub/push', {
+    method: 'POST',
+    body: JSON.stringify({ type: 'orders.changed' }),
   });
 }

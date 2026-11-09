@@ -80,3 +80,28 @@ npm test   # TEST_DATABASE_URL overrides the default postgres://postgres:test@lo
 ```
 
 `npm run smoke:email` verifies a running container against a local SMTP fixture that replies `421`: an Email stays queued, survives `docker restart`, and retries once at its original 30-second due time. CI starts the container with `SMTP_HOST=127.0.0.1`, `SMTP_PORT=18088` and host networking; set `SMOKE_CONTAINER` to its name and `SMOKE_URL` to its HTTP address. This uses only the disposable CI database and fixture relay.
+
+### Staff Orders and heartbeat (Portal #174)
+
+CREOMS's backend checks the signed-in User is Staff, then asks the gateway for
+`POST /live-tickets` with `{ "userId": "<signed-in User>", "channel": "staff-orders" }`.
+Only the Caller configured with `systemCode: CRMS` may issue this channel.
+The browser connects to `/notifications/orders/staff/live?ticket=PASS` at the gateway;
+the service's `/orders/staff/live` accepts only the gateway secret. Customer Orders,
+Conversations and inbox tickets cannot join this channel. A declared userId that
+is different from the ticket's User is refused by the gateway.
+
+After committing an Order change, ecommerce publishes `POST /notifications/orders/changed`
+with JSON `{}` at the gateway (ECOM Caller only). The service requires its bearer token
+on `/orders/changed`. Every open Staff Orders socket receives exactly
+`{ "type": "orders.changed" }`. There is no Order payload, storage or replay; clients
+refetch their own current Orders on connect and on the signal. Customer sockets and
+notification bells receive nothing. Log a failed publish without failing a committed change.
+
+The Node service sends WebSocket protocol pings every 30 seconds. Browsers answer
+protocol pongs automatically; a connection missing its pong is terminated at the next
+tick, within two intervals. This runs entirely in memory across all live routes and
+makes no database, SMTP or API call. The existing text `ping` / `pong` remains supported.
+`npm test -- test/node-live.spec.ts` exercises actual HTTP/WebSocket connections with
+external services unavailable; `npm run smoke:live` additionally checks the production
+30-second heartbeat against the running container before restart.
