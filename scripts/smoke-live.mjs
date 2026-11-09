@@ -23,12 +23,13 @@ const request = (path, init = {}) =>
     ...init,
   });
 
-async function connect(path, secret = gateway) {
+async function connect(path, secret = gateway, autoPong = true) {
   const url = new URL(path, base);
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
   const socket = new WebSocket(url, {
     headers: secret === null ? {} : { 'x-gateway-secret': secret },
     handshakeTimeout: 5000,
+    autoPong,
   });
   sockets.add(socket);
   const events = [];
@@ -192,6 +193,49 @@ async function exercise(label) {
     1,
     'Order events stay out of Notification rooms',
   );
+  const staff = await connect(`/orders/staff/live?userId=staff-${id}`);
+  const staffTab = await connect(`/orders/staff/live?userId=staff-${id}`);
+  const colleague = await connect(`/orders/staff/live?userId=colleague-${id}`);
+  for (const client of [staff, staffTab, colleague])
+    assert.equal(client.status, 101);
+  assert.equal(
+    (
+      await request('/orders/changed', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      })
+    ).status,
+    401,
+  );
+  assert.equal(
+    (
+      await request('/orders/changed', {
+        method: 'POST',
+        headers,
+        body: '{"orderId":"private"}',
+      })
+    ).status,
+    400,
+  );
+  const changed = await request('/orders/changed', {
+    method: 'POST',
+    headers,
+    body: '{}',
+  });
+  assert.equal(changed.status, 200);
+  assert.equal((await changed.json()).connected, 3);
+  for (const client of [staff, staffTab, colleague]) {
+    await until(
+      () => jsonEvents(client).length === 1,
+      'Staff orders-changed signal',
+    );
+    assert.deepEqual(jsonEvents(client), [{ type: 'orders.changed' }]);
+  }
+  await ping(otherOrders);
+  assert.deepEqual(jsonEvents(otherOrders), []);
+  await ping(orders);
+  assert.deepEqual(jsonEvents(orders), [event]);
   return { path, clients: [...sockets] };
 }
 
@@ -199,6 +243,7 @@ try {
   for (const path of [
     '/live?app=Portal&userId=smoke',
     '/orders/live?userId=smoke',
+    '/orders/staff/live?userId=smoke',
     '/conversations/smoke/live?userId=smoke&role=Customer',
   ]) {
     for (const secret of [null, 'invalid-gateway-secret']) {
@@ -206,6 +251,26 @@ try {
     }
   }
   const before = await exercise('before-restart');
+  const healthy = await connect('/live?app=Portal&userId=heartbeat-healthy');
+  const dead = await connect(
+    '/live?app=Portal&userId=heartbeat-dead',
+    gateway,
+    false,
+  );
+  let pings = 0;
+  healthy.socket.on('ping', () => pings++);
+  await until(
+    () => dead.socket.readyState === WebSocket.CLOSED,
+    'silent dead socket dropped within two heartbeat intervals',
+    61_000,
+  );
+  assert.equal(healthy.socket.readyState, WebSocket.OPEN);
+  assert.ok(pings >= 1, 'healthy idle socket receives protocol heartbeat');
+  await ping(healthy);
+  assert.deepEqual(jsonEvents(healthy), []);
+  console.log(
+    'Heartbeat passed: dead socket closed within 60 seconds, healthy idle socket stayed open',
+  );
   await promisify(execFile)('docker', ['restart', container], {
     timeout: 45000,
   });
