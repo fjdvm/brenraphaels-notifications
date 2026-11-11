@@ -12,15 +12,22 @@ export function createEmailQueue(config: Config) {
   let stopped = false;
   function schedule(emailId: string, delay = 0) {
     if (stopped || timers.has(emailId) || active.has(emailId)) return;
+    const due = Date.now() + Math.max(0, delay);
     timers.set(
       emailId,
       setTimeout(
         () => {
           timers.delete(emailId);
+          // Node clamps delays beyond 2^31-1 ms to 1 ms. Chain only in-memory
+          // timers until due, without a database request at each boundary.
+          if (due > Date.now()) {
+            schedule(emailId, due - Date.now());
+            return;
+          }
           const delivery = run(emailId).catch(console.error);
           active.set(emailId, delivery);
         },
-        Math.max(0, delay),
+        Math.min(2 ** 31 - 1, Math.max(0, delay)),
       ),
     );
   }
@@ -46,7 +53,10 @@ export function createEmailQueue(config: Config) {
   }
   return {
     async send(job: EmailJob) {
-      schedule(job.emailId);
+      schedule(
+        job.emailId,
+        job.sendAt ? Date.parse(job.sendAt) - Date.now() : 0,
+      );
     },
     async recover() {
       const { db, close } = createDb(config.DATABASE_URL);
@@ -58,11 +68,14 @@ export function createEmailQueue(config: Config) {
         for (const email of pending) {
           const due =
             email.attempts === 0
-              ? Date.now()
+              ? (email.sendAt?.getTime() ?? Date.now())
               : Math.min(
                   email.updatedAt.getTime() +
                     retryDelaySeconds(email.attempts) * 1000,
-                  email.createdAt.getTime() + RETRY_WINDOW_MS,
+                  Math.max(
+                    email.createdAt.getTime(),
+                    email.sendAt?.getTime() ?? 0,
+                  ) + RETRY_WINDOW_MS,
                 );
           schedule(email.id, due - Date.now());
         }

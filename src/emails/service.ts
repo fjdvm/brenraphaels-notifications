@@ -31,6 +31,7 @@ export async function createEmail(
     sendingApp: string;
     values: unknown;
     subscriberConsent?: boolean;
+    sendAt?: Date;
   },
 ) {
   const [row] = await db
@@ -43,6 +44,7 @@ export async function createEmail(
       sendingApp: input.sendingApp,
       values: JSON.stringify(input.values),
       subscriberConsent: input.subscriberConsent,
+      sendAt: input.sendAt,
       status: 'queued',
       messageId: newMessageId(
         senderFor(config, templates[input.template]!.category).address,
@@ -126,7 +128,15 @@ async function deliverLockedEmail(
   const email = await getEmail(db, id);
   if (!email || email.status !== 'queued') return {};
 
-  if (Date.now() >= email.createdAt.getTime() + RETRY_WINDOW_MS) {
+  const deliveryStart = Math.max(
+    email.createdAt.getTime(),
+    email.sendAt?.getTime() ?? 0,
+  );
+  if (Date.now() < deliveryStart) {
+    return { retryInSeconds: Math.ceil((deliveryStart - Date.now()) / 1000) };
+  }
+
+  if (Date.now() >= deliveryStart + RETRY_WINDOW_MS) {
     await markFailed(
       db,
       id,
@@ -170,8 +180,7 @@ async function deliverLockedEmail(
     });
   } catch (err) {
     const failure = classifyFailure(err);
-    const remainingMs =
-      email.createdAt.getTime() + RETRY_WINDOW_MS - Date.now();
+    const remainingMs = deliveryStart + RETRY_WINDOW_MS - Date.now();
     if (failure.kind === 'permanent' || remainingMs <= 0) {
       await markFailed(db, id, attempts, failure.reason);
       return {};

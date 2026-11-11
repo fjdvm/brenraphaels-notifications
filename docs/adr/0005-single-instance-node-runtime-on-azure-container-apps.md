@@ -17,3 +17,9 @@ The service cannot scale out safely without introducing shared coordination such
 Each queued Email schedules a timer for its next due attempt. At startup, load pending Emails once from Neon and reschedule their timers, so a restart does not lose pending retries. No queue service, interval polling or periodic database scan is used. Temporary failures retain growing delays up to 24 hours after queueing; permanent failures stop immediately, with the existing credential-error exceptions retained. The Message-ID is generated at queueing and reused for every attempt. Delivery remains at least once: a timeout after SMTP acceptance can still produce a duplicate.
 
 Use a standard Node SMTP client in place of Workers sockets and worker-mailer, keeping the Brevo SMTP relay and the existing Email contract. The accepted cost is rewriting the Cloudflare integrations and operating the container and its restart recovery. Azure credit and the below-$20 budget need verification and ongoing monitoring; consolidating hosts is not a cost guarantee.
+
+## Scheduled App emails (HRMS #273)
+
+The optional `sendAt` on App email extends the original immediate-delivery rule. Store the chosen time with the Email and set its first timer for that time; past or omitted times send immediately. Startup recovery restores that original time. Idempotency keys preserve the original content and send time. There is no edit or cancellation operation. Long waits use only in-memory timers, including delays beyond the Node timer limit, and never scan the database periodically.
+
+This supersedes the “24 hours after queueing” retry deadline above for scheduled Emails: the 24-hour window starts at the later of queueing and `sendAt`. Otherwise an Email scheduled more than a day ahead would expire before its first attempt. Immediate Emails retain the original window.

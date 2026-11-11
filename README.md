@@ -14,7 +14,7 @@ npm run dev
 
 `npm run build` bundles the Node entrypoint and the HTML guide; `npm start` runs `node dist/server.mjs` with environment variables already supplied. `npm run dev` additionally reads `.env`. Missing or invalid configuration fails startup without printing secret values. `PORT` defaults to `8080`; the listener binds to `0.0.0.0`. Both sender addresses must be verified in Brevo.
 
-`.env.production.example` lists required and optional runtime keys. `DATABASE_URL`, `SMTP_USER`, `SMTP_PASSWORD`, `API_TOKEN` and `GATEWAY_SECRET` are secrets. Existing keys and database records are unchanged. No new schema or data migration is required; `db:migrate` applies the existing migrations to a new database.
+`.env.production.example` lists required and optional runtime keys. `DATABASE_URL`, `SMTP_USER`, `SMTP_PASSWORD`, `API_TOKEN` and `GATEWAY_SECRET` are secrets. Existing keys and database records are unchanged. Run `npm run db:migrate` before deploying: migration 0006 adds the nullable `emails.send_at` column and preserves existing rows.
 
 ## Container
 
@@ -25,7 +25,7 @@ docker run --rm --env-file .env -p 8080:8080 notifications:local
 
 The runtime runs as the unprivileged `node` user. No Workers runtime, Cloudflare bindings or Cloudflare credentials are needed. `GET /health` is unauthenticated and returns `200 {"status":"ok"}` after startup recovery succeeds. Configure the platform's HTTP probe on `/health` and its target port to match `PORT`. SIGTERM/SIGINT stop HTTP and live connections and allow active deliveries to finish, with a 35-second shutdown deadline.
 
-Node adapters preserve the existing delivery and relay interfaces. Portal tickets #148–#150 cover live rooms, Node SMTP and timer-based Email retries. WebSocket rooms are in memory, so run exactly one replica; clients reconnect after restart. Each Email has one timer for its next due attempt, with delays of 30 seconds, 60 seconds, 2 minutes and so on, capped at one hour. Startup loads queued rows once and rebuilds timers from the last attempt time; overdue rows run immediately. At 24 hours from queueing, pending Emails are marked failed without opening SMTP again. The last SMTP failure reason is retained, and attempts count only actual delivery attempts. There is no queue service, interval polling or periodic database query while idle. Email delivery uses Nodemailer directly with required STARTTLS on port 587 (or implicit TLS on port 465). Each attempt carries the queued Message-ID and closes its SMTP connection on completion or the 30-second deadline. Tests stub Nodemailer without importing Workers socket modules. `src/index.ts` and `wrangler.jsonc` remain for rollback and those tests; production starts at `src/node/server.ts`.
+Node adapters preserve the existing delivery and relay interfaces. Portal tickets #148–#150 cover live rooms, Node SMTP and timer-based Email retries. WebSocket rooms are in memory, so run exactly one replica; clients reconnect after restart. Each Email has one timer for its next due attempt, with delays of 30 seconds, 60 seconds, 2 minutes and so on, capped at one hour. Startup loads queued rows once and rebuilds timers from the last attempt time; overdue rows run immediately. At 24 hours from the later of queueing and `sendAt`, pending Emails are marked failed without opening SMTP again. The last SMTP failure reason is retained, and attempts count only actual delivery attempts. There is no queue service, interval polling or periodic database query while idle. Email delivery uses Nodemailer directly with required STARTTLS on port 587 (or implicit TLS on port 465). Each attempt carries the queued Message-ID and closes its SMTP connection on completion or the 30-second deadline. Tests stub Nodemailer without importing Workers socket modules. `src/index.ts` and `wrangler.jsonc` remain for rollback and those tests; production starts at `src/node/server.ts`.
 
 ## CI
 
@@ -105,3 +105,7 @@ makes no database, SMTP or API call. The existing text `ping` / `pong` remains s
 `npm test -- test/node-live.spec.ts` exercises actual HTTP/WebSocket connections with
 external services unavailable; `npm run smoke:live` additionally checks the production
 30-second heartbeat against the running container before restart.
+
+### Scheduled App emails
+
+`POST /emails/app` accepts optional `sendAt`, an ISO 8601 timestamp with timezone (for example `2026-11-13T09:00:00+08:00`). A future time schedules the first attempt; a past or omitted time sends now. HRMS is accepted with the existing bearer token. The schedule is persisted and recovered once at startup, with no polling. An Idempotency-Key preserves the original content and send time, even when a repeated request supplies a different time. Scheduling has no edit or cancel operation. The 24-hour retry window begins at the later of queueing and the scheduled time.

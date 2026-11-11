@@ -24,6 +24,7 @@ export const emails = pgTable(
     status: text('status', { enum: ['queued', 'sent', 'failed'] }).notNull(),
     attempts: integer('attempts').notNull().default(0),
     messageId: text('message_id'),
+    sendAt: timestamp('send_at', { withTimezone: true }),
     failureReason: text('failure_reason'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()

@@ -105,6 +105,14 @@ describe('the OpenAPI document', () => {
       type: 'string',
       format: 'date-time',
     });
+    const appEmail =
+      doc.paths['/emails/app'].post.requestBody.content['application/json']
+        .schema;
+    expect(appEmail.properties.sendAt).toMatchObject({
+      type: 'string',
+      format: 'date-time',
+    });
+    expect(appEmail.required).not.toContain('sendAt');
     expect(doc.paths['/live'].get.security).toEqual([]);
   });
 });

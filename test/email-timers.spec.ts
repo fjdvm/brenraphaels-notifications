@@ -295,3 +295,100 @@ it('schedules the final expiry for the remaining window rather than the full ret
   );
   expect(smtp.calls).toHaveLength(1);
 });
+
+it('delivers an HRMS App email at sendAt, including beyond the retry window', async () => {
+  const h = service();
+  const sendAt = new Date(Date.now() + 2 * DAY).toISOString();
+  const response = await h.postAppEmail({
+    to: 'user@example.com',
+    app: 'HRMS',
+    title: 'Result',
+    body: 'Passed',
+    sendAt,
+  });
+  expect(response.status).toBe(202);
+  const { id } = (await response.json()) as { id: string };
+  await vi.advanceTimersByTimeAsync(2 * DAY - 1000);
+  await pause(30);
+  expect(smtp.calls).toHaveLength(0);
+  expect(await status(h, id)).toMatchObject({ status: 'queued', attempts: 0 });
+  await vi.advanceTimersByTimeAsync(1000);
+  await eventually(async () =>
+    expect(await status(h, id)).toMatchObject({ status: 'sent', attempts: 1 }),
+  );
+});
+
+it('keeps the original scheduled time across keyed retries and restart without idle database work', async () => {
+  const h = service();
+  const sendAt = new Date(Date.now() + 60_000).toISOString();
+  const key = crypto.randomUUID();
+  const request = (time: string) =>
+    h.request('/emails/app', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'idempotency-key': key },
+      body: JSON.stringify({
+        to: 'user@example.com',
+        app: 'HRMS',
+        title: 'Result',
+        body: 'Passed',
+        sendAt: time,
+      }),
+    });
+  const { id } = (await (await request(sendAt)).json()) as { id: string };
+  expect(await (await request(new Date().toISOString())).json()).toMatchObject({
+    id,
+  });
+  await h.queue.close();
+  await vi.advanceTimersByTimeAsync(20_000);
+  const restarted = createEmailQueue(parseConfig(h.env));
+  queues.push(restarted);
+  await restarted.recover();
+  await restarted.recover();
+  const queries = database.queries.length;
+  await vi.advanceTimersByTimeAsync(39_000);
+  await pause(30);
+  expect(database.queries).toHaveLength(queries);
+  expect(smtp.calls).toHaveLength(0);
+  await vi.advanceTimersByTimeAsync(1000);
+  await eventually(async () =>
+    expect(await status(h, id)).toMatchObject({ status: 'sent', attempts: 1 }),
+  );
+  await vi.advanceTimersByTimeAsync(DAY);
+  expect(smtp.calls).toHaveLength(1);
+});
+
+it('waits beyond the Node timer limit without querying the database early', async () => {
+  const h = service();
+  const response = await h.postAppEmail({
+    to: 'user@example.com',
+    app: 'HRMS',
+    title: 'Later',
+    body: 'Hello',
+    sendAt: new Date(Date.now() + 30 * DAY).toISOString(),
+  });
+  const { id } = (await response.json()) as { id: string };
+  const queries = database.queries.length;
+  await vi.advanceTimersByTimeAsync(30 * DAY - 1000);
+  await pause(30);
+  expect(database.queries).toHaveLength(queries);
+  expect(smtp.calls).toHaveLength(0);
+  await vi.advanceTimersByTimeAsync(1000);
+  await eventually(async () =>
+    expect(await status(h, id)).toMatchObject({ status: 'sent', attempts: 1 }),
+  );
+});
+
+it('sends a past sendAt immediately', async () => {
+  const h = service();
+  const response = await h.postAppEmail({
+    to: 'user@example.com',
+    app: 'HRMS',
+    title: 'Now',
+    body: 'Hello',
+    sendAt: new Date(Date.now() - DAY).toISOString(),
+  });
+  const { id } = (await response.json()) as { id: string };
+  await eventually(async () =>
+    expect(await status(h, id)).toMatchObject({ status: 'sent', attempts: 1 }),
+  );
+});

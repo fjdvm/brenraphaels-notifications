@@ -276,3 +276,16 @@ it('scopes email keys to App and recipient and preserves the original request co
     h.smtpCalls.every((call) => call.email.subject === 'Welcome aboard'),
   ).toBe(true);
 });
+
+it.each(['tomorrow', '2026-11-13T12:00:00', '2026-02-30T12:00:00Z', null, 123])(
+  'rejects an invalid sendAt (%s)',
+  async (sendAt) => {
+    const h = createHarness();
+    const response = await h.postAppEmail({ ...valid, sendAt });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      errors: { sendAt: expect.any(Array) },
+    });
+    expect(h.queued).toHaveLength(0);
+  },
+);

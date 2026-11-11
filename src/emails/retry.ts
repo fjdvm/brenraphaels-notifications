@@ -1,4 +1,4 @@
-/** An Email that is still failing temporarily this long after queueing is given up on. */
+/** An Email that is still failing temporarily this long after its delivery start is given up on. */
 export const RETRY_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 const BASE_DELAY_SECONDS = 30;

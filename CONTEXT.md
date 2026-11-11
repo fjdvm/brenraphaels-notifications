@@ -29,7 +29,7 @@ A real-time in-app message sent from one App to a user in another (or the same) 
 _Avoid_: Alert, push, event
 
 **Email**:
-A message sent to an address through Brevo (SMTP relay), with a stored record of what was sent and its outcome. Each Email gets a Message-ID when it is queued and keeps it across retries, so a duplicate can be recognised. Delivery is at least once: a retry after a timeout may send again. A temporary failure is retried for up to 24 hours from queueing; a permanent failure stops at once. The record keeps the attempt count and the last failure reason.
+A message sent to an address through Brevo (SMTP relay), with a stored record of what was sent and its outcome. Each Email gets a Message-ID when it is queued and keeps it across retries, so a duplicate can be recognised. Delivery is at least once: a retry after a timeout may send again. An App email may be scheduled for a chosen send time; a past or missing time sends immediately, and the chosen time cannot be edited or cancelled. A temporary failure is retried for up to 24 hours from the later of queueing and the chosen send time; a permanent failure stops at once. The record keeps the attempt count and the last failure reason.
 _Avoid_: Mail, message
 
 **Conversation**:
