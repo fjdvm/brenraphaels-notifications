@@ -140,7 +140,7 @@ export const routes = {
   sendAppEmail: {
     method: 'post',
     path: '/emails/app',
-    summary: 'Queue an App email',
+    summary: 'Queue an App email now or at sendAt',
     auth: 'token',
     headers: z.object({
       'Idempotency-Key': z.string().trim().min(1).max(255).optional(),

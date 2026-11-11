@@ -165,7 +165,8 @@ ws.onmessage = (e) => console.log(JSON.parse(e.data));
 { id:'post-emails-app', title:'Send an App email', method:'POST', path:'/emails/app', role:'token', intro:'Queues a system Email built from the generic template. Delivery happens in the background; use the returned id to look up the outcome.',
   tables:[{ title:'Body', head:['Field','Required','Notes'], rows:[
     ['<code>to</code>','yes','An email address'],
-    ['<code>app</code>','yes','The App sending it'],
+    ['<code>app</code>','yes','The App sending it (HRMS is accepted)'],
+    ['<code>sendAt</code>','no','ISO 8601 timestamp with timezone. Future schedules delivery; past or omitted sends now. Survives restart; no edit or cancellation. Retries last 24 hours from the later of queueing and sendAt.'],
     ['<code>title</code> <code>body</code>','yes','The subject and text'],
     ['<code>button</code>','no','<code>{label, link}</code>, with an http or https link']]}],
   responses:[['202','<code>{"id":"…","status":"queued"}</code>'],['400','Invalid body']],
@@ -233,7 +234,7 @@ ws.onopen = () => ws.send(JSON.stringify({ type: "message", id: "m1", text: "Hel
     ['<code>get_unread_count</code>','<code>userId</code> <code>app</code>'],
     ['<code>mark_notification_read</code>','<code>id</code> <code>userId</code> <code>app</code>'],
     ['<code>mark_all_notifications_read</code>','<code>userId</code> <code>app</code>'],
-    ['<code>send_app_email</code>','<code>to</code> <code>app</code> <code>title</code> <code>body</code> <code>button?</code> (<code>{label, link}</code>)'],
+    ['<code>send_app_email</code>','<code>to</code> <code>app</code> <code>title</code> <code>body</code> <code>sendAt?</code> <code>button?</code> (<code>{label, link}</code>)'],
     ['<code>send_marketing_email</code>','<code>to</code> <code>app</code> (<code>"CRMS"</code>) <code>subscriberConsent</code> (<code>true</code>) <code>title</code> <code>body</code> <code>images?</code> (https URLs) <code>imageLayout?</code> <code>unsubscribeUrl?</code> (https URL)'],
     ['<code>send_marketing_email_list</code>','<code>recipients</code> (a list) <code>app</code> (<code>"CRMS"</code>) <code>subscriberConsent</code> (<code>true</code>) <code>title</code> <code>body</code> <code>images?</code> (https URLs) <code>imageLayout?</code> <code>unsubscribeUrl?</code> (https URL)'],
     ['<code>get_email</code>','<code>id</code>']]}],

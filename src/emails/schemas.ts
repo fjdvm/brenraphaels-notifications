@@ -6,6 +6,12 @@ import { marketing } from '../templates/marketing';
 export const appEmailRequest = z.object({
   to: z.email(),
   app: z.string().min(1),
+  sendAt: z.iso
+    .datetime({ offset: true })
+    .optional()
+    .describe(
+      'Deliver at this time; past or omitted sends immediately. No edit or cancellation.',
+    ),
   ...appEmail.schema.shape,
 });
 

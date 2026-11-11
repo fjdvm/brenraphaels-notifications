@@ -51,4 +51,5 @@ export interface Env extends Record<string, unknown> {
 
 export interface EmailJob {
   emailId: string;
+  sendAt?: string;
 }

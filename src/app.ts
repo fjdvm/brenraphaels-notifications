@@ -94,6 +94,7 @@ interface EmailRequest {
   to: string;
   app: string;
   subscriberConsent?: boolean;
+  sendAt?: string;
 }
 
 function invalid(c: Context, error: z.ZodError) {
@@ -124,7 +125,13 @@ async function queueEmail(
   const json = await c.req.json().catch(() => undefined);
   const parsed = schema.safeParse(json);
   if (!parsed.success) return invalid(c, parsed.error);
-  const { to, app: sendingApp, subscriberConsent, ...values } = parsed.data;
+  const {
+    to,
+    app: sendingApp,
+    subscriberConsent,
+    sendAt,
+    ...values
+  } = parsed.data;
   const { db, close } = createDb(config.DATABASE_URL);
   try {
     const email = await createEmail(db, config, {
@@ -134,10 +141,14 @@ async function queueEmail(
       sendingApp,
       values,
       subscriberConsent,
+      sendAt: sendAt ? new Date(sendAt) : undefined,
     });
     try {
       if (email.status === 'queued')
-        await c.env.EMAIL_QUEUE.send({ emailId: email.id });
+        await c.env.EMAIL_QUEUE.send({
+          emailId: email.id,
+          sendAt: email.sendAt?.toISOString(),
+        });
     } catch (err) {
       if (!idempotencyKey) await markEnqueueFailed(db, email.id, err);
       throw err;
