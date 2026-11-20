@@ -19,8 +19,14 @@ import {
   publishToOrders,
   connectToStaffOrders,
   publishStaffOrdersChanged,
+  connectToStaffStock,
+  publishStaffStockChanged,
 } from './orders/relay';
-import { orderConnectQuery, publishOrderEvent } from './orders/schemas';
+import {
+  orderConnectQuery,
+  publishOrderEvent,
+  publishStockChanged,
+} from './orders/schemas';
 import { connectToRoom } from './conversations/connect';
 import { connectToHub, pushToUser } from './live/push';
 import guide from './docs/guide.html';
@@ -88,6 +94,8 @@ app.use('/orders/live', requireGateway);
 app.use('/orders/events', requireToken);
 app.use('/orders/changed', requireToken);
 app.use('/orders/staff/live', requireGateway);
+app.use('/stock/staff/live', requireGateway);
+app.use('/stock/changed', requireToken);
 app.use('/conversations/:ticketId/live', requireGateway);
 
 interface EmailRequest {
@@ -400,6 +408,22 @@ app.post('/orders/changed', async (c) => {
     .safeParse(await c.req.json().catch(() => undefined));
   if (!parsed.success) return invalid(c, parsed.error);
   return publishStaffOrdersChanged(c.env);
+});
+
+// Only the gateway may admit Staff; it issues this channel only for CRMS.
+app.get('/stock/staff/live', (c) => {
+  const parsed = orderConnectQuery.safeParse(c.req.query());
+  if (!parsed.success) return invalid(c, parsed.error);
+  return connectToStaffStock(c.env, c.req.raw);
+});
+
+// The gateway forwards this only for the IMS Caller. Nothing is stored.
+app.post('/stock/changed', async (c) => {
+  const parsed = publishStockChanged.safeParse(
+    await c.req.json().catch(() => undefined),
+  );
+  if (!parsed.success) return invalid(c, parsed.error);
+  return publishStaffStockChanged(c.env, parsed.data.sizeId);
 });
 
 app.post('/orders/events', async (c) => {

@@ -72,7 +72,7 @@ async function setup() {
       },
       body: JSON.stringify(body),
     });
-  return { connect, barrier, publish, smtpCalls };
+  return { connect, barrier, publish, smtpCalls, base };
 }
 
 it('drops a silent dead socket within two 30-second intervals and keeps a healthy idle socket open', async () => {
@@ -134,5 +134,47 @@ it('refuses unauthorised publish and payloads with private Order data', async ()
   expect((await h.publish({ orderId: 'private' })).status).toBe(400);
   await expect(
     h.connect('/orders/staff/live?userId=staff', true, 'wrong'),
+  ).rejects.toThrow();
+});
+
+it('relays a Size ID to every Staff stock socket only, with no replay', async () => {
+  const h = await setup();
+  const publish = (body: unknown, token = 'test-token-0123456789') =>
+    globalThis.fetch(`${h.base}/stock/changed`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+  expect(await (await publish({ sizeId: 's0' })).json()).toEqual({
+    connected: 0,
+  });
+  const staff = await h.connect('/stock/staff/live?userId=staff-1');
+  const tab = await h.connect('/stock/staff/live?userId=staff-1');
+  const orders = await h.connect('/orders/staff/live?userId=staff-1');
+  const customer = await h.connect('/orders/live?userId=staff-1');
+  const received = [staff, tab].map((c) => once(c.socket, 'message'));
+  expect(await (await publish({ sizeId: 's1' })).json()).toEqual({
+    connected: 2,
+  });
+  await Promise.all(received);
+  for (const c of [staff, tab])
+    expect(c.messages.map((m) => JSON.parse(m))).toEqual([
+      { type: 'stock.changed', sizeId: 's1' },
+    ]);
+  for (const c of [orders, customer]) {
+    await h.barrier(c);
+    expect(c.messages).toEqual([]);
+  }
+  const late = await h.connect('/stock/staff/live?userId=staff-2');
+  await h.barrier(late);
+  expect(late.messages).toEqual([]);
+  expect((await publish({ sizeId: 's1' }, 'wrong')).status).toBe(401);
+  expect((await publish({ sizeId: '' })).status).toBe(400);
+  expect((await publish({ sizeId: 's1', price: 5 })).status).toBe(400);
+  await expect(
+    h.connect('/stock/staff/live?userId=staff', true, 'wrong'),
   ).rejects.toThrow();
 });

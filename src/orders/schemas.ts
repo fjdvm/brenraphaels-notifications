@@ -13,3 +13,9 @@ export const orderEvent = z.discriminatedUnion('type', [
 export const publishOrderEvent = z
   .object({ customerId: id, event: orderEvent })
   .strict();
+
+// The IMS publishes only the Size ID; CREOMS refetches that Size itself.
+export const stockChanged = z
+  .object({ type: z.literal('stock.changed'), sizeId: id })
+  .strict();
+export const publishStockChanged = z.object({ sizeId: id }).strict();
