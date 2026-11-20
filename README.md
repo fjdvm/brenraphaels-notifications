@@ -98,6 +98,19 @@ on `/orders/changed`. Every open Staff Orders socket receives exactly
 refetch their own current Orders on connect and on the signal. Customer sockets and
 notification bells receive nothing. Log a failed publish without failing a committed change.
 
+### Staff stock (CREOMS Products & Stocks, #670)
+
+CREOMS's backend checks the signed-in User is Staff with the Orders Module, then asks the
+gateway for `POST /live-tickets` with `{ "userId": "<User>", "channel": "staff-stock" }`
+(CRMS Caller only). The browser connects to `/notifications/stock/staff/live?ticket=PASS`;
+the service's `/stock/staff/live` accepts only the gateway secret. This is a separate
+room from the Staff Orders signal and from every Customer channel.
+
+The IMS publishes `POST /notifications/stock/changed` with `{ "sizeId": "..." }` (IMS Caller
+only at the gateway; bearer token at the service). Every open Staff stock socket receives
+`{ "type": "stock.changed", "sizeId": "..." }`. Nothing is stored, queued or replayed;
+offline Staff get nothing later and refetch on connect.
+
 The Node service sends WebSocket protocol pings every 30 seconds. Browsers answer
 protocol pongs automatically; a connection missing its pong is terminated at the next
 tick, within two intervals. This runs entirely in memory across all live routes and

@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import type { ZodType } from 'zod';
-import { orderConnectQuery, publishOrderEvent } from '../orders/schemas';
+import {
+  orderConnectQuery,
+  publishOrderEvent,
+  publishStockChanged,
+} from '../orders/schemas';
 import {
   appEmailRequest,
   marketingEmailRequest,
@@ -271,6 +275,33 @@ export const routes = {
       status: 200,
       description:
         'Number of connected Staff sockets reached; offline signals are dropped.',
+      schema: z.object({ connected: z.number().int().nonnegative() }),
+    },
+    errors: [],
+  },
+  staffStockLive: {
+    method: 'get',
+    path: '/stock/staff/live',
+    summary: 'Gateway-only Staff stock WebSocket (CRMS Caller tickets only)',
+    auth: 'open',
+    query: orderConnectQuery,
+    success: {
+      status: 101,
+      description:
+        'Requires X-Gateway-Secret. Receives {type: stock.changed, sizeId} events.',
+    },
+    errors: [400, 401, 426],
+  },
+  publishStockChanged: {
+    method: 'post',
+    path: '/stock/changed',
+    summary: 'Relay a Size ID to every connected Staff stock socket',
+    auth: 'token',
+    body: publishStockChanged,
+    success: {
+      status: 200,
+      description:
+        'Number of connected Staff sockets reached; offline events are dropped.',
       schema: z.object({ connected: z.number().int().nonnegative() }),
     },
     errors: [],
